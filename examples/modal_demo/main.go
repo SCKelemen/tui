@@ -231,7 +231,9 @@ func (m model) View() string {
 	// Message history
 	boxWidth := 70
 	b.WriteString("\n\033[2m┌─ Action History ─")
-	b.WriteString(strings.Repeat("─", boxWidth-19)) // 19 = len("┌─ Action History ─")
+	// boxWidth = len("┌─ Action History ─") + dashes + len("┐")
+	// 70 = 19 + dashes + 1, so dashes = 50
+	b.WriteString(strings.Repeat("─", boxWidth-20))
 	b.WriteString("┐\033[0m\n")
 
 	// Show last 5 messages

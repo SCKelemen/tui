@@ -225,21 +225,16 @@ func (m *Modal) View() string {
 
 	var b strings.Builder
 
-	// Calculate dimensions
-	modalWidth := min(60, m.width-8)
+	// Calculate dimensions - ensure we don't exceed terminal width
+	modalWidth := min(60, m.width-4)
 	messageLines := wrapText(m.message, modalWidth-4)
-	contentHeight := len(messageLines) + 4 // Message + buttons + padding
-	if m.hasInput {
-		contentHeight += 3 // Add space for input
-	}
-	modalHeight := min(contentHeight+4, m.height-6)
 	startX := (m.width - modalWidth) / 2
-	startY := max(3, (m.height-modalHeight)/3)
-
-	// Render backdrop/overlay
-	for y := 0; y < startY; y++ {
-		b.WriteString("\n")
+	if startX < 0 {
+		startX = 0
 	}
+
+	// Render minimal backdrop (just 2 lines of spacing)
+	b.WriteString("\n\n")
 
 	// Top border with integrated title
 	b.WriteString(strings.Repeat(" ", startX))
@@ -250,11 +245,12 @@ func (m *Modal) View() string {
 	}
 	titleText := "── " + title + " "
 	b.WriteString(titleText)
-	remainingWidth := modalWidth - len(titleText) - 3
+	// Calculate remaining width more carefully
+	remainingWidth := modalWidth - len(titleText) - 4 // Account for ╭─ and ─╮
 	if remainingWidth > 0 {
 		b.WriteString(strings.Repeat("─", remainingWidth))
 	}
-	b.WriteString("─╮\n")
+	b.WriteString("╮\n")
 
 	// Empty line
 	b.WriteString(strings.Repeat(" ", startX))
@@ -330,8 +326,11 @@ func (m *Modal) View() string {
 		}
 	}
 
-	// Pad to width
-	b.WriteString(strings.Repeat(" ", modalWidth-buttonStartX-totalButtonWidth-1))
+	// Pad to width (modalWidth-2 for interior, minus what we've used)
+	padding := (modalWidth - 2) - buttonStartX - totalButtonWidth
+	if padding > 0 {
+		b.WriteString(strings.Repeat(" ", padding))
+	}
 	b.WriteString("│\n")
 
 	// Empty line
@@ -343,12 +342,17 @@ func (m *Modal) View() string {
 	// Bottom border with hints
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString("╰")
-	hints := " Tab: navigate · Enter: confirm · Esc: cancel "
-	b.WriteString("\033[2m")
-	b.WriteString(hints)
-	b.WriteString("\033[0m")
-	if len(hints) < modalWidth-2 {
-		b.WriteString(strings.Repeat("─", modalWidth-len(hints)-2))
+	hints := "─ Tab: navigate · Enter: confirm · Esc: cancel "
+	// Calculate remaining dash width: modalWidth - corners(2) - hints length
+	remainingDashes := modalWidth - 2 - len(hints)
+	if remainingDashes > 0 {
+		b.WriteString("\033[2m")
+		b.WriteString(hints)
+		b.WriteString(strings.Repeat("─", remainingDashes))
+		b.WriteString("\033[0m")
+	} else {
+		// If hints too long, just use dashes
+		b.WriteString(strings.Repeat("─", modalWidth-2))
 	}
 	b.WriteString("╯\n")
 

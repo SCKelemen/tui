@@ -59,6 +59,8 @@ type model struct {
 	lineIndex     int
 	currentBlock  *tui.ToolBlock
 	currentOutput []string
+	width         int
+	height        int
 }
 
 type streamLineMsg struct{}
@@ -150,6 +152,10 @@ func nextStage() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -157,7 +163,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			// Reset demonstration
 			newM := newModel()
-			return newM, newM.Init()
+			newM.width = m.width
+			newM.height = m.height
+			// Send window size to new model
+			return newM, tea.Batch(
+				newM.Init(),
+				func() tea.Msg {
+					return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+				},
+			)
 		}
 
 	case streamLineMsg:

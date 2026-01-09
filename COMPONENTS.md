@@ -121,7 +121,95 @@ Processing files...                                    Tab: Focus • q: Quit
 
 ---
 
-### 4. Application
+### 4. TextInput
+
+Multi-line text input component for user messages.
+
+**Features:**
+- Multi-line text editing with textarea support
+- Submit with Ctrl+J (Ctrl+Enter)
+- Clear with Ctrl+D
+- Bordered container with visual hints
+- Callback support for message submission
+- Placeholder text when empty
+- Character limit (10,000 by default)
+
+**Example:**
+```go
+textInput := tui.NewTextInput()
+textInput.OnSubmit(func(text string) tea.Cmd {
+    // Handle submitted message
+    fmt.Println("User said:", text)
+    return nil
+})
+app.AddComponent(textInput)
+```
+
+**Output:**
+```
+┌──────────────────────────────────────────┐
+│ ┃ Type your message here...              │
+│ ┃                                         │
+│ ┃                                         │
+└ Ctrl+J: send · Ctrl+D: clear ────────────┘
+```
+
+---
+
+### 5. CommandPalette
+
+Fuzzy-searchable command launcher (like VS Code's Ctrl+P).
+
+**Features:**
+- Modal overlay that appears on Ctrl+K or Ctrl+P
+- Fuzzy search filtering as you type
+- Up/Down arrow navigation
+- Enter to execute selected command
+- Esc to dismiss
+- Shows command name, description, and keybinding
+- Category grouping support
+- Custom action callbacks
+
+**Example:**
+```go
+commands := []tui.Command{
+    {
+        Name:        "Clear Messages",
+        Description: "Clear all message history",
+        Category:    "Edit",
+        Keybinding:  "Ctrl+L",
+        Action: func() tea.Cmd {
+            return clearMessagesCmd()
+        },
+    },
+    {
+        Name:        "Toggle Activity",
+        Description: "Start/stop activity animation",
+        Category:    "View",
+        Keybinding:  "Ctrl+A",
+        Action: func() tea.Cmd {
+            return toggleActivityCmd()
+        },
+    },
+}
+
+palette := tui.NewCommandPalette(commands)
+app.AddComponent(palette)
+```
+
+**Output:**
+```
+          ┌────────── Command Palette ──────────┐
+          │ > clear                             │
+          ├─────────────────────────────────────┤
+          │ ▸ Clear Messages           Ctrl+L  │
+          │   Clear Cache                       │
+          └ 2 commands ─────────────────────────┘
+```
+
+---
+
+### 6. Application
 
 Container for managing multiple components with focus.
 
@@ -171,7 +259,11 @@ type Component interface {
 | Tab | Focus next component |
 | Shift+Tab | Focus previous component |
 | Ctrl+O or Enter | Expand/collapse ToolBlock |
-| Esc | Interrupt active ActivityBar |
+| Ctrl+K or Ctrl+P | Open CommandPalette |
+| Ctrl+J | Submit text in TextInput |
+| Ctrl+D | Clear text in TextInput |
+| Up/Down | Navigate CommandPalette items |
+| Esc | Close CommandPalette or interrupt ActivityBar |
 | q or Ctrl+C | Quit application |
 
 ---
@@ -193,17 +285,29 @@ go run examples/claude_demo_output/main.go
 go run examples/claude_code_demo/main.go
 ```
 
+### Input Components Demo (Non-interactive)
+```bash
+go run examples/input_demo_output/main.go
+```
+
+### Input Components Demo (Interactive)
+```bash
+go run examples/input_demo/main.go
+```
+
 ---
 
 ## Future Components (Planned)
 
 - **FileExplorer**: Tree view with navigation and search
-- **CommandPalette**: Fuzzy-searchable command launcher
 - **Editor**: Text viewing/editing with syntax highlighting
 - **Modal**: Dialog boxes for confirmations and inputs
 - **Tabs**: Multi-view tab management
 - **SidePanel**: Collapsible side panels with sections
 - **SearchResults**: Searchable result lists with context
+- **DiffViewer**: Side-by-side or unified diff display
+- **ProgressBar**: Progress indicator for long-running operations
+- **Table**: Sortable, scrollable data tables
 
 ---
 

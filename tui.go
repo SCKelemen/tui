@@ -3,6 +3,9 @@
 package tui
 
 import (
+	"fmt"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -63,6 +66,8 @@ func (a *Application) Init() tea.Cmd {
 
 // Update handles messages
 func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -79,9 +84,28 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		// Window size messages should go to all components
+		for i, c := range a.components {
+			var cmd tea.Cmd
+			a.components[i], cmd = c.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		return a, tea.Batch(cmds...)
 	}
 
-	// Pass message to focused component
+	// Check if this is a tick message (these need to go to all components for animations)
+	// We do this by checking the message type name
+	if isTickMessage(msg) {
+		// Broadcast tick messages to all components for animations
+		for i, c := range a.components {
+			var cmd tea.Cmd
+			a.components[i], cmd = c.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		return a, tea.Batch(cmds...)
+	}
+
+	// Pass other messages only to focused component
 	if a.focused >= 0 && a.focused < len(a.components) {
 		var cmd tea.Cmd
 		a.components[a.focused], cmd = a.components[a.focused].Update(msg)
@@ -89,6 +113,19 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return a, nil
+}
+
+// isTickMessage checks if a message is a tick-related message that should be broadcast
+func isTickMessage(msg tea.Msg) bool {
+	// Check for common tick message types
+	switch msg.(type) {
+	case tickMsg:
+		return true
+	default:
+		// Check the type name for any message containing "tick" or "Tick"
+		typeName := fmt.Sprintf("%T", msg)
+		return strings.Contains(typeName, "tick") || strings.Contains(typeName, "Tick")
+	}
 }
 
 // View renders the application

@@ -130,8 +130,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toggleActivityMsg:
 		if m.activityBar.Focused() {
 			m.activityBar.Stop()
+			return m, nil
 		} else {
-			m.activityBar.Start("Processing...")
+			activityCmd := m.activityBar.Start("Processing...")
+			return m, activityCmd
 		}
 
 	case addToolBlockMsg:

@@ -131,10 +131,11 @@ func newModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	m.activityBar.Start("Running tests...")
+	activityCmd := m.activityBar.Start("Running tests...")
 	return tea.Batch(
 		m.app.Init(),
 		streamLine(),
+		activityCmd,
 	)
 }
 
@@ -204,15 +205,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch m.stage {
 		case 1: // Start build
-			m.activityBar.Start("Building project...")
+			activityCmd := m.activityBar.Start("Building project...")
 			m.currentBlock = m.buildBlock
 			m.currentOutput = buildOutput
-			return m, streamLine()
+			return m, tea.Batch(streamLine(), activityCmd)
 		case 2: // Start error demo
-			m.activityBar.Start("Running failing tests...")
+			activityCmd := m.activityBar.Start("Running failing tests...")
 			m.currentBlock = m.errorBlock
 			m.currentOutput = errorOutput
-			return m, streamLine()
+			return m, tea.Batch(streamLine(), activityCmd)
 		}
 	}
 

@@ -6,6 +6,20 @@
 *.dylib
 /tui
 
+# Example binaries
+examples/*/fileexplorer_demo
+examples/*/modal_demo
+examples/*/basic
+examples/*/claude_code_demo
+examples/*/claude_demo_output
+examples/*/demo_output
+examples/*/input_demo
+examples/*/input_demo_output
+examples/*/streaming_demo
+examples/*/streaming_demo_output
+fileexplorer_demo
+modal_demo
+
 # Test binaries
 *.test
 

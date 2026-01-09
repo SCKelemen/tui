@@ -220,6 +220,18 @@ Future v2 components will leverage:
 
 **Status**: v1 components use simple ANSI rendering for immediate usability. v2 refactor will add full stack integration when all packages are public.
 
+**ActivityBarV2**: An experimental v2 implementation (`activitybar_v2.go`) exists that demonstrates full stack integration. It requires private packages and is gated behind a build tag:
+
+```bash
+# Standard build (v1 components only)
+go build
+
+# Build with stack integration (requires private repos)
+go build -tags stack
+```
+
+This pattern will be extended to other components as the stack packages become public.
+
 ---
 
 ## License

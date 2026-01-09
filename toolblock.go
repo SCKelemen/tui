@@ -3,8 +3,19 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+// ToolBlockStatus represents the execution state
+type ToolBlockStatus int
+
+const (
+	StatusRunning ToolBlockStatus = iota
+	StatusComplete
+	StatusError
+	StatusWarning
 )
 
 // ToolBlock represents a collapsible block showing tool execution results
@@ -18,6 +29,9 @@ type ToolBlock struct {
 	showLineNos bool // Show line numbers (for code files)
 	icon        string
 	maxLines    int // Max lines to show when collapsed (0 = show all)
+	status      ToolBlockStatus
+	spinner     int
+	streaming   bool // Enable streaming mode
 }
 
 // ToolBlockOption configures a ToolBlock
@@ -37,6 +51,21 @@ func WithMaxLines(n int) ToolBlockOption {
 	}
 }
 
+// WithStreaming enables streaming mode for real-time output
+func WithStreaming() ToolBlockOption {
+	return func(tb *ToolBlock) {
+		tb.streaming = true
+		tb.status = StatusRunning
+	}
+}
+
+// WithStatus sets the initial status
+func WithStatus(status ToolBlockStatus) ToolBlockOption {
+	return func(tb *ToolBlock) {
+		tb.status = status
+	}
+}
+
 // NewToolBlock creates a new tool block
 func NewToolBlock(toolName, command string, output []string, opts ...ToolBlockOption) *ToolBlock {
 	tb := &ToolBlock{
@@ -46,6 +75,7 @@ func NewToolBlock(toolName, command string, output []string, opts ...ToolBlockOp
 		expanded: false,
 		maxLines: 5, // Default: show first 5 lines when collapsed
 		icon:     getToolIcon(toolName),
+		status:   StatusComplete, // Default to complete
 	}
 
 	for _, opt := range opts {
@@ -57,7 +87,15 @@ func NewToolBlock(toolName, command string, output []string, opts ...ToolBlockOp
 
 // Init initializes the tool block
 func (tb *ToolBlock) Init() tea.Cmd {
+	if tb.streaming && tb.status == StatusRunning {
+		return tb.tick()
+	}
 	return nil
+}
+
+// toolBlockTickMsg is sent to animate the spinner
+type toolBlockTickMsg struct {
+	id *ToolBlock
 }
 
 // Update handles messages
@@ -65,6 +103,12 @@ func (tb *ToolBlock) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		tb.width = msg.Width
+
+	case toolBlockTickMsg:
+		if msg.id == tb && tb.streaming && tb.status == StatusRunning {
+			tb.spinner = (tb.spinner + 1) % len(spinnerFrames)
+			return tb, tb.tick()
+		}
 
 	case tea.KeyMsg:
 		if tb.focused {
@@ -85,11 +129,29 @@ func (tb *ToolBlock) View() string {
 
 	var lines []string
 
-	// Header: ⏺ Bash(command)
-	header := fmt.Sprintf("%s \033[1m%s\033[0m\033[2m(%s)\033[0m",
-		tb.icon,
-		tb.toolName,
-		truncateString(tb.command, tb.width-len(tb.toolName)-10))
+	// Get status indicator and color
+	statusIcon, statusColor := tb.getStatusIndicator()
+
+	// Header with status: [icon] Bash(command) [status]
+	var header string
+	if tb.streaming && tb.status == StatusRunning {
+		// Show spinner when streaming
+		spinner := spinnerFrames[tb.spinner]
+		header = fmt.Sprintf("%s%s\033[0m \033[1m%s\033[0m\033[2m(%s)\033[0m %s%s\033[0m",
+			statusColor,
+			tb.icon,
+			tb.toolName,
+			truncateString(tb.command, tb.width-len(tb.toolName)-20),
+			statusColor,
+			spinner)
+	} else {
+		header = fmt.Sprintf("%s%s\033[0m \033[1m%s\033[0m\033[2m(%s)\033[0m %s",
+			statusColor,
+			tb.icon,
+			tb.toolName,
+			truncateString(tb.command, tb.width-len(tb.toolName)-15),
+			statusIcon)
+	}
 
 	if tb.focused {
 		header = "\033[7m" + header + "\033[0m" // Inverted when focused
@@ -99,7 +161,11 @@ func (tb *ToolBlock) View() string {
 
 	// Output with tree connector
 	if len(tb.output) == 0 {
-		lines = append(lines, "  \033[2m⎿  (no output)\033[0m")
+		if tb.streaming && tb.status == StatusRunning {
+			lines = append(lines, "  \033[2m⎿  \033[3mstreaming...\033[0m")
+		} else {
+			lines = append(lines, "  \033[2m⎿  (no output)\033[0m")
+		}
 		return strings.Join(lines, "\n") + "\n"
 	}
 
@@ -196,4 +262,65 @@ func truncateString(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// getStatusIndicator returns the icon and color for the current status
+func (tb *ToolBlock) getStatusIndicator() (string, string) {
+	switch tb.status {
+	case StatusRunning:
+		return "", "\033[36m" // Cyan
+	case StatusComplete:
+		return "\033[32m✓\033[0m", "\033[32m" // Green
+	case StatusError:
+		return "\033[31m✗\033[0m", "\033[31m" // Red
+	case StatusWarning:
+		return "\033[33m⚠\033[0m", "\033[33m" // Yellow
+	default:
+		return "", "\033[0m"
+	}
+}
+
+// tick returns a command that sends a tick message for spinner animation
+func (tb *ToolBlock) tick() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return toolBlockTickMsg{id: tb}
+	})
+}
+
+// AppendLine adds a single line to the output (for streaming)
+func (tb *ToolBlock) AppendLine(line string) {
+	tb.output = append(tb.output, line)
+}
+
+// AppendLines adds multiple lines to the output (for streaming)
+func (tb *ToolBlock) AppendLines(lines []string) {
+	tb.output = append(tb.output, lines...)
+}
+
+// SetStatus updates the status and stops streaming if completed
+func (tb *ToolBlock) SetStatus(status ToolBlockStatus) {
+	tb.status = status
+	if status != StatusRunning {
+		tb.streaming = false
+	}
+}
+
+// StartStreaming begins streaming mode with running status
+func (tb *ToolBlock) StartStreaming() tea.Cmd {
+	tb.streaming = true
+	tb.status = StatusRunning
+	tb.spinner = 0
+	return tb.tick()
+}
+
+// StopStreaming stops streaming and sets status to complete
+func (tb *ToolBlock) StopStreaming() {
+	tb.streaming = false
+	tb.status = StatusComplete
+}
+
+// StopStreamingWithError stops streaming and sets status to error
+func (tb *ToolBlock) StopStreamingWithError() {
+	tb.streaming = false
+	tb.status = StatusError
 }

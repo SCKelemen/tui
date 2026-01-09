@@ -33,10 +33,13 @@ activityBar.Stop()
 
 ### 2. ToolBlock
 
-Collapsible content blocks for displaying tool execution results.
+Collapsible content blocks for displaying tool execution results with real-time streaming support.
 
 **Features:**
 - Collapsible/expandable output
+- Real-time streaming output (AppendLine/AppendLines)
+- Status indicators: ✓ (complete), ✗ (error), ⚠ (warning), animated spinner (running)
+- Color-coded by status (green, red, yellow, cyan)
 - Line numbers for code files
 - Tree-style indentation
 - "... +N lines" summary when collapsed
@@ -46,6 +49,8 @@ Collapsible content blocks for displaying tool execution results.
 **Options:**
 - `WithLineNumbers()` - Show line numbers (for code)
 - `WithMaxLines(n)` - Limit visible lines when collapsed
+- `WithStreaming()` - Enable streaming mode with running status
+- `WithStatus(status)` - Set initial status (StatusComplete, StatusError, StatusWarning, StatusRunning)
 
 **Example:**
 ```go
@@ -94,6 +99,55 @@ block := tui.NewToolBlock(
        3 func main() {
        4     fmt.Println("hello")
        5 }
+```
+
+**Streaming Mode:**
+```go
+// Create block in streaming mode
+block := tui.NewToolBlock(
+    "Bash",
+    "go test -v",
+    []string{},
+    tui.WithStreaming(),
+)
+
+// Append output as it arrives
+block.AppendLine("=== RUN   TestFoo")
+block.AppendLine("--- PASS: TestFoo (0.00s)")
+block.AppendLines([]string{
+    "=== RUN   TestBar",
+    "--- PASS: TestBar (0.00s)",
+})
+
+// Complete when done
+block.SetStatus(tui.StatusComplete)
+```
+
+**Streaming Output:**
+```
+⏺ Bash(go test -v) ⠋   (while running with animated spinner)
+  ⎿  streaming...
+
+⏺ Bash(go test -v) ✓   (when complete)
+  ⎿  === RUN   TestFoo
+     --- PASS: TestFoo (0.00s)
+     === RUN   TestBar
+     --- PASS: TestBar (0.00s)
+```
+
+**Status States:**
+```go
+// Success
+tui.WithStatus(tui.StatusComplete)  // Green ✓
+
+// Error
+tui.WithStatus(tui.StatusError)     // Red ✗
+
+// Warning
+tui.WithStatus(tui.StatusWarning)   // Yellow ⚠
+
+// Running (auto-set with WithStreaming)
+tui.WithStatus(tui.StatusRunning)   // Cyan with spinner
 ```
 
 ---
@@ -293,6 +347,16 @@ go run examples/input_demo_output/main.go
 ### Input Components Demo (Interactive)
 ```bash
 go run examples/input_demo/main.go
+```
+
+### Streaming ToolBlocks Demo (Non-interactive)
+```bash
+go run examples/streaming_demo_output/main.go
+```
+
+### Streaming ToolBlocks Demo (Interactive)
+```bash
+go run examples/streaming_demo/main.go
 ```
 
 ---

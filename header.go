@@ -1,0 +1,319 @@
+package tui
+
+import (
+	"strings"
+	"unicode/utf8"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// ColumnAlign defines how content is aligned within a column
+type ColumnAlign int
+
+const (
+	AlignLeft ColumnAlign = iota
+	AlignCenter
+	AlignRight
+)
+
+// HeaderColumn represents a column in the header
+type HeaderColumn struct {
+	Width   int         // Width as percentage (0-100) or fixed width if negative
+	Align   ColumnAlign // Content alignment
+	Content []string    // Lines of content
+}
+
+// HeaderSection represents a section within a column with optional divider
+type HeaderSection struct {
+	Title   string   // Section title (optional)
+	Content []string // Section content lines
+	Divider bool     // Show horizontal divider before section
+}
+
+// Header displays a multi-column header with rounded borders
+type Header struct {
+	width       int
+	height      int
+	columns     []HeaderColumn
+	sections    map[int][]HeaderSection // Column index -> sections
+	showDivider bool                    // Show vertical divider between columns
+	focused     bool
+}
+
+// HeaderOption configures a Header
+type HeaderOption func(*Header)
+
+// WithColumns sets the columns for the header
+func WithColumns(columns ...HeaderColumn) HeaderOption {
+	return func(h *Header) {
+		h.columns = columns
+	}
+}
+
+// WithColumnSections sets sections for a specific column
+func WithColumnSections(columnIndex int, sections ...HeaderSection) HeaderOption {
+	return func(h *Header) {
+		if h.sections == nil {
+			h.sections = make(map[int][]HeaderSection)
+		}
+		h.sections[columnIndex] = sections
+	}
+}
+
+// WithVerticalDivider enables/disables the vertical divider between columns
+func WithVerticalDivider(show bool) HeaderOption {
+	return func(h *Header) {
+		h.showDivider = show
+	}
+}
+
+// NewHeader creates a new header component
+func NewHeader(opts ...HeaderOption) *Header {
+	h := &Header{
+		columns:     []HeaderColumn{},
+		sections:    make(map[int][]HeaderSection),
+		showDivider: true,
+	}
+
+	for _, opt := range opts {
+		opt(h)
+	}
+
+	return h
+}
+
+// Init initializes the header
+func (h *Header) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles messages
+func (h *Header) Update(msg tea.Msg) (Component, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		h.width = msg.Width
+		h.height = msg.Height
+	}
+
+	return h, nil
+}
+
+// View renders the header
+func (h *Header) View() string {
+	if h.width == 0 || len(h.columns) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+
+	// Calculate column widths
+	columnWidths := h.calculateColumnWidths()
+	totalWidth := 0
+	for _, w := range columnWidths {
+		totalWidth += w
+	}
+	// Add space for dividers
+	if h.showDivider && len(columnWidths) > 1 {
+		totalWidth += len(columnWidths) - 1
+	}
+	// Add borders
+	totalWidth += 2
+
+	// Calculate content height
+	contentHeight := h.calculateContentHeight()
+
+	// Top border
+	b.WriteString("╭")
+	b.WriteString(strings.Repeat("─", totalWidth-2))
+	b.WriteString("╮\n")
+
+	// Render content rows
+	for row := 0; row < contentHeight; row++ {
+		b.WriteString("│")
+
+		for colIdx, colWidth := range columnWidths {
+			// Get content for this row/column
+			content := h.getColumnContent(colIdx, row)
+
+			// Apply alignment
+			aligned := h.alignContent(content, colWidth, h.columns[colIdx].Align)
+			b.WriteString(aligned)
+
+			// Add vertical divider
+			if h.showDivider && colIdx < len(columnWidths)-1 {
+				b.WriteString("│")
+			}
+		}
+
+		b.WriteString("│\n")
+	}
+
+	// Bottom border
+	b.WriteString("╰")
+	b.WriteString(strings.Repeat("─", totalWidth-2))
+	b.WriteString("╯\n")
+
+	return b.String()
+}
+
+// Focus is called when this component receives focus
+func (h *Header) Focus() {
+	h.focused = true
+}
+
+// Blur is called when this component loses focus
+func (h *Header) Blur() {
+	h.focused = false
+}
+
+// Focused returns whether this component is currently focused
+func (h *Header) Focused() bool {
+	return h.focused
+}
+
+// calculateColumnWidths calculates the actual pixel widths for each column
+func (h *Header) calculateColumnWidths() []int {
+	if len(h.columns) == 0 {
+		return nil
+	}
+
+	availableWidth := h.width - 2 // Account for borders
+	if h.showDivider && len(h.columns) > 1 {
+		availableWidth -= len(h.columns) - 1 // Account for dividers
+	}
+
+	widths := make([]int, len(h.columns))
+
+	// For simplicity, distribute evenly for now
+	// TODO: Support percentage-based and fixed widths
+	widthPerColumn := availableWidth / len(h.columns)
+	remaining := availableWidth % len(h.columns)
+
+	for i := range widths {
+		widths[i] = widthPerColumn
+		if i < remaining {
+			widths[i]++
+		}
+	}
+
+	return widths
+}
+
+// calculateContentHeight calculates the total height needed for content
+func (h *Header) calculateContentHeight() int {
+	maxHeight := 0
+
+	for colIdx := range h.columns {
+		// Check if column has sections
+		if sections, ok := h.sections[colIdx]; ok {
+			height := 0
+			for _, section := range sections {
+				if section.Divider && height > 0 {
+					height++ // Divider line
+				}
+				if section.Title != "" {
+					height++ // Title line
+				}
+				height += len(section.Content)
+			}
+			if height > maxHeight {
+				maxHeight = height
+			}
+		} else {
+			// Use column content
+			if len(h.columns[colIdx].Content) > maxHeight {
+				maxHeight = len(h.columns[colIdx].Content)
+			}
+		}
+	}
+
+	// Add padding
+	return maxHeight + 2
+}
+
+// getColumnContent gets the content for a specific column and row
+func (h *Header) getColumnContent(colIdx, row int) string {
+	// Check if column has sections
+	if sections, ok := h.sections[colIdx]; ok {
+		currentRow := 0
+
+		// Add top padding
+		if row == 0 {
+			return ""
+		}
+		currentRow++
+
+		for _, section := range sections {
+			// Divider
+			if section.Divider && currentRow > 1 {
+				if row == currentRow {
+					// Return horizontal divider
+					return "─────────────────────"
+				}
+				currentRow++
+			}
+
+			// Section title
+			if section.Title != "" {
+				if row == currentRow {
+					return section.Title
+				}
+				currentRow++
+			}
+
+			// Section content
+			for _, line := range section.Content {
+				if row == currentRow {
+					return line
+				}
+				currentRow++
+			}
+		}
+
+		return ""
+	}
+
+	// Use column content
+	if row == 0 || row >= len(h.columns[colIdx].Content)+1 {
+		return "" // Padding
+	}
+
+	lineIdx := row - 1
+	if lineIdx < len(h.columns[colIdx].Content) {
+		return h.columns[colIdx].Content[lineIdx]
+	}
+
+	return ""
+}
+
+// alignContent aligns content within a given width
+func (h *Header) alignContent(content string, width int, align ColumnAlign) string {
+	contentWidth := utf8.RuneCountInString(content)
+
+	if contentWidth >= width {
+		// Truncate if too long
+		if contentWidth > width {
+			runes := []rune(content)
+			if width > 3 {
+				return string(runes[:width-3]) + "..."
+			}
+			return string(runes[:width])
+		}
+		return content
+	}
+
+	padding := width - contentWidth
+
+	switch align {
+	case AlignLeft:
+		return content + strings.Repeat(" ", padding)
+	case AlignRight:
+		return strings.Repeat(" ", padding) + content
+	case AlignCenter:
+		leftPad := padding / 2
+		rightPad := padding - leftPad
+		return strings.Repeat(" ", leftPad) + content + strings.Repeat(" ", rightPad)
+	}
+
+	return content
+}

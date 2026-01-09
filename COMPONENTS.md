@@ -464,6 +464,85 @@ p.Run()
 
 ---
 
+### 9. Header
+
+Multi-column header with rounded borders and vertical dividers.
+
+**Features:**
+- Multi-column layout with configurable widths
+- Content alignment per column (left, center, right)
+- Sections within columns with optional titles
+- Horizontal dividers between sections
+- Vertical dividers between columns
+- Rounded corner borders (╭╮╰╯)
+- UTF-8 aware width calculations
+
+**Example:**
+```go
+header := tui.NewHeader(
+    tui.WithColumns(
+        // Left column: centered
+        tui.HeaderColumn{
+            Width:   40,
+            Align:   tui.AlignCenter,
+            Content: []string{
+                "",
+                "Welcome back!",
+                "",
+                "TUI Framework v1.0",
+                "",
+            },
+        },
+        // Right column: left-aligned with sections
+        tui.HeaderColumn{
+            Width: 60,
+            Align: tui.AlignLeft,
+        },
+    ),
+    tui.WithColumnSections(1,
+        tui.HeaderSection{
+            Title:   "Tips for getting started",
+            Content: []string{
+                "Use Tab to navigate between components",
+                "Press q to quit applications",
+            },
+        },
+        tui.HeaderSection{
+            Title:   "Recent activity",
+            Content: []string{
+                "No recent activity",
+            },
+            Divider: true, // Add horizontal divider before this section
+        },
+    ),
+    tui.WithVerticalDivider(true),
+)
+```
+
+**Output:**
+```
+╭────────────────────────────────────────────────────────────────────╮
+│                                    │ Tips for getting started      │
+│          Welcome back!             │ Use Tab to navigate...        │
+│                                    │ Press q to quit...            │
+│       TUI Framework v1.0           │ ─────────────────────────────│
+│                                    │ Recent activity               │
+│                                    │ No recent activity            │
+╰────────────────────────────────────────────────────────────────────╯
+```
+
+**Column Alignment:**
+- `AlignLeft` - Content aligned to the left
+- `AlignCenter` - Content centered in column
+- `AlignRight` - Content aligned to the right
+
+**Sections:**
+- Add multiple sections to a column with `WithColumnSections(columnIndex, ...sections)`
+- Each section can have a title and content
+- Use `Divider: true` to add horizontal separator before section
+
+---
+
 ## Component Interface
 
 All components implement:
@@ -581,11 +660,15 @@ go run examples/fileexplorer_demo/main.go
 go run examples/modal_demo/main.go
 ```
 
+### Header Demo (Interactive)
+```bash
+go run examples/header_demo/main.go
+```
+
 ---
 
 ## Future Components (Planned)
 
-- **Header**: Fancy multi-column headers with rounded corners (like Claude Code's welcome screen)
 - **Editor**: Text viewing/editing with syntax highlighting
 - **Tabs**: Multi-view tab management
 - **SidePanel**: Collapsible side panels with sections

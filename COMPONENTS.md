@@ -289,6 +289,181 @@ p.Run()
 
 ---
 
+### 6. FileExplorer
+
+Tree-based file system navigator with keyboard controls.
+
+**Features:**
+- Tree view with expand/collapse
+- Lazy loading (directories load on expand)
+- Show/hide hidden files (toggle with `.`)
+- Keyboard navigation (vim-style or arrows)
+- Visual indicators: 📁 (collapsed), 📂 (expanded), 📄 (file)
+- Depth indentation with tree connectors
+- Scroll handling for long lists
+- Parent/child relationships
+- Refresh on demand
+
+**Example:**
+```go
+fileExplorer := tui.NewFileExplorer("/path/to/directory",
+    tui.WithShowHidden(false))
+app.AddComponent(fileExplorer)
+
+// Get selected path
+path := fileExplorer.GetSelectedPath()
+
+// Get selected node
+node := fileExplorer.GetSelectedNode()
+if node != nil {
+    fmt.Printf("Selected: %s (IsDir: %v)\n", node.Name, node.IsDir)
+}
+```
+
+**Keyboard Controls:**
+- `↑/k` - Move selection up
+- `↓/j` - Move selection down
+- `→/l or Enter` - Expand directory
+- `←/h` - Collapse directory or move to parent
+- `.` - Toggle hidden files
+- `r` - Refresh current directory
+
+**Output:**
+```
+📁 /home/user/projects
+
+  📂 myproject
+  ├─ 📁 src
+  ├─ 📄 go.mod
+  ├─ 📄 go.sum
+  └─ 📄 README.md
+
+[1/15]
+↑↓: navigate · Enter: open · .: toggle hidden · r: refresh
+```
+
+---
+
+### 7. Modal
+
+Overlay dialogs for user interaction (alerts, confirmations, input).
+
+**Features:**
+- Three modal types: Alert, Confirm, Input
+- Centered overlay with backdrop
+- Keyboard navigation between buttons (Tab/Shift+Tab)
+- Text wrapping for long messages
+- Optional text input field
+- Callback support for user actions
+- ESC to cancel, Enter to confirm
+- Customizable buttons and actions
+
+**Modal Types:**
+
+**Alert** - Information with OK button:
+```go
+modal.ShowAlert(
+    "Success",
+    "Operation completed successfully!",
+    func() tea.Cmd {
+        // Handle OK
+        return nil
+    },
+)
+```
+
+**Confirm** - Yes/No question:
+```go
+modal.ShowConfirm(
+    "Delete File",
+    "Are you sure you want to delete this file?",
+    func() tea.Cmd {
+        // Handle Yes
+        return deleteFileCmd()
+    },
+    func() tea.Cmd {
+        // Handle No
+        return nil
+    },
+)
+```
+
+**Input** - Text entry with OK/Cancel:
+```go
+modal.ShowInput(
+    "Enter Name",
+    "Please enter your name:",
+    "John Doe", // placeholder
+    func(value string) tea.Cmd {
+        // Handle OK with value
+        return processNameCmd(value)
+    },
+    func() tea.Cmd {
+        // Handle Cancel
+        return nil
+    },
+)
+```
+
+**Keyboard Controls:**
+- `Tab / →` - Next button
+- `Shift+Tab / ←` - Previous button
+- `Enter` - Confirm selected button
+- `Esc` - Cancel/close modal
+
+**Output:**
+```
+╭─── Confirmation ──────────────────────────╮
+│                                           │
+│  Are you sure you want to proceed with   │
+│  this action? This cannot be undone.     │
+│                                           │
+│            [ Yes ]  [ No ]               │
+│                                           │
+└─ Tab: navigate · Enter: confirm · Esc ───┘
+```
+
+**Custom Buttons:**
+```go
+modal := tui.NewModal(
+    tui.WithModalTitle("Choose Option"),
+    tui.WithModalMessage("Select one:"),
+    tui.WithModalButtons([]tui.ModalButton{
+        {Label: "Option 1", Action: func(s string) tea.Cmd { return nil }},
+        {Label: "Option 2", Action: func(s string) tea.Cmd { return nil }},
+        {Label: "Cancel", Action: func(s string) tea.Cmd { return nil }},
+    }),
+)
+```
+
+---
+
+### 8. Application
+
+Container for managing multiple components with focus.
+
+**Features:**
+- Component lifecycle management (Init, Update, View, Focus, Blur)
+- Tab/Shift+Tab focus navigation
+- Window size handling
+- Quit keys (q, Ctrl+C)
+
+**Example:**
+```go
+app := tui.NewApplication()
+
+activityBar := tui.NewActivityBar()
+toolBlock := tui.NewToolBlock("Bash", "ls", []string{"file1", "file2"})
+
+app.AddComponent(activityBar)
+app.AddComponent(toolBlock)
+
+p := tea.NewProgram(app, tea.WithAltScreen())
+p.Run()
+```
+
+---
+
 ## Component Interface
 
 All components implement:
@@ -308,17 +483,54 @@ type Component interface {
 
 ## Keyboard Shortcuts
 
+### Global
 | Key | Action |
 |-----|--------|
 | Tab | Focus next component |
 | Shift+Tab | Focus previous component |
-| Ctrl+O or Enter | Expand/collapse ToolBlock |
-| Ctrl+K or Ctrl+P | Open CommandPalette |
-| Ctrl+J | Submit text in TextInput |
-| Ctrl+D | Clear text in TextInput |
-| Up/Down | Navigate CommandPalette items |
-| Esc | Close CommandPalette or interrupt ActivityBar |
 | q or Ctrl+C | Quit application |
+
+### ToolBlock
+| Key | Action |
+|-----|--------|
+| Ctrl+O or Enter | Expand/collapse ToolBlock |
+
+### TextInput
+| Key | Action |
+|-----|--------|
+| Ctrl+J | Submit text |
+| Ctrl+D | Clear text |
+
+### CommandPalette
+| Key | Action |
+|-----|--------|
+| Ctrl+K or Ctrl+P | Open CommandPalette |
+| Up/Down | Navigate items |
+| Enter | Execute selected command |
+| Esc | Close palette |
+
+### FileExplorer
+| Key | Action |
+|-----|--------|
+| ↑/k | Move selection up |
+| ↓/j | Move selection down |
+| →/l or Enter | Expand directory |
+| ←/h | Collapse directory or move to parent |
+| . | Toggle hidden files |
+| r | Refresh directory |
+
+### Modal
+| Key | Action |
+|-----|--------|
+| Tab / → | Next button |
+| Shift+Tab / ← | Previous button |
+| Enter | Confirm selected button |
+| Esc | Cancel/close modal |
+
+### ActivityBar
+| Key | Action |
+|-----|--------|
+| Esc | Interrupt running activity |
 
 ---
 
@@ -359,13 +571,22 @@ go run examples/streaming_demo_output/main.go
 go run examples/streaming_demo/main.go
 ```
 
+### FileExplorer Demo (Interactive)
+```bash
+go run examples/fileexplorer_demo/main.go
+```
+
+### Modal Demo (Interactive)
+```bash
+go run examples/modal_demo/main.go
+```
+
 ---
 
 ## Future Components (Planned)
 
-- **FileExplorer**: Tree view with navigation and search
+- **Header**: Fancy multi-column headers with rounded corners (like Claude Code's welcome screen)
 - **Editor**: Text viewing/editing with syntax highlighting
-- **Modal**: Dialog boxes for confirmations and inputs
 - **Tabs**: Multi-view tab management
 - **SidePanel**: Collapsible side panels with sections
 - **SearchResults**: Searchable result lists with context

@@ -117,9 +117,11 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // isTickMessage checks if a message is a tick-related message that should be broadcast
 func isTickMessage(msg tea.Msg) bool {
-	// Check for common tick message types
+	// Check for specific tick message types
 	switch msg.(type) {
-	case tickMsg:
+	case activityBarTickMsg:
+		return true
+	case toolBlockTickMsg:
 		return true
 	default:
 		// Check the type name for any message containing "tick" or "Tick"

@@ -21,8 +21,8 @@ type ActivityBar struct {
 	cancelable bool
 }
 
-// tickMsg is sent periodically to update the spinner and timer
-type tickMsg time.Time
+// activityBarTickMsg is sent periodically to update the spinner and timer
+type activityBarTickMsg time.Time
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -45,7 +45,7 @@ func (a *ActivityBar) Update(msg tea.Msg) (Component, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 
-	case tickMsg:
+	case activityBarTickMsg:
 		if a.active {
 			a.spinner = (a.spinner + 1) % len(spinnerFrames)
 			a.elapsed = time.Since(a.startTime)
@@ -147,10 +147,10 @@ func (a *ActivityBar) SetProgress(progress string) {
 	a.progress = progress
 }
 
-// tick returns a command that sends a tickMsg after a delay
+// tick returns a command that sends an activityBarTickMsg after a delay
 func (a *ActivityBar) tick() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
-		return tickMsg(t)
+		return activityBarTickMsg(t)
 	})
 }
 

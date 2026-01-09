@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -245,8 +246,9 @@ func (m *Modal) View() string {
 	}
 	titleText := "── " + title + " "
 	b.WriteString(titleText)
-	// Calculate remaining width more carefully
-	remainingWidth := modalWidth - len(titleText) - 4 // Account for ╭─ and ─╮
+	// Calculate remaining width using rune count for visual width
+	titleWidth := utf8.RuneCountInString(titleText)
+	remainingWidth := modalWidth - titleWidth - 4 // Account for ╭─ (2) and ╮ (1), plus the ─ we'll add (1)
 	if remainingWidth > 0 {
 		b.WriteString(strings.Repeat("─", remainingWidth))
 	}
@@ -263,9 +265,10 @@ func (m *Modal) View() string {
 		b.WriteString(strings.Repeat(" ", startX))
 		b.WriteString("│ ")
 		b.WriteString(line)
-		// Pad to width
-		if len(line) < modalWidth-4 {
-			b.WriteString(strings.Repeat(" ", modalWidth-4-len(line)))
+		// Pad to width using rune count for visual width
+		lineWidth := utf8.RuneCountInString(line)
+		if lineWidth < modalWidth-4 {
+			b.WriteString(strings.Repeat(" ", modalWidth-4-lineWidth))
 		}
 		b.WriteString(" │\n")
 	}
@@ -282,7 +285,8 @@ func (m *Modal) View() string {
 		b.WriteString("│ ")
 		inputView := m.textInput.View()
 		b.WriteString(inputView)
-		inputLen := len(stripANSI(inputView))
+		// Use rune count for visual width after stripping ANSI codes
+		inputLen := utf8.RuneCountInString(stripANSI(inputView))
 		if inputLen < modalWidth-4 {
 			b.WriteString(strings.Repeat(" ", modalWidth-4-inputLen))
 		}
@@ -299,13 +303,20 @@ func (m *Modal) View() string {
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString("│")
 
-	// Calculate button layout
+	// Calculate button layout (using rune count for visual width)
 	totalButtonWidth := 0
 	for _, btn := range m.buttons {
-		totalButtonWidth += len(btn.Label) + 4 // [Label] + spacing
+		totalButtonWidth += utf8.RuneCountInString(btn.Label) + 4 // [Label] with brackets
+	}
+	// Add spacing between buttons (2 spaces between each)
+	if len(m.buttons) > 1 {
+		totalButtonWidth += 2 * (len(m.buttons) - 1)
 	}
 
-	buttonStartX := (modalWidth - totalButtonWidth) / 2
+	buttonStartX := (modalWidth - 2 - totalButtonWidth) / 2
+	if buttonStartX < 1 {
+		buttonStartX = 1
+	}
 	b.WriteString(strings.Repeat(" ", buttonStartX))
 
 	for i, btn := range m.buttons {
@@ -343,8 +354,9 @@ func (m *Modal) View() string {
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString("╰")
 	hints := "─ Tab: navigate · Enter: confirm · Esc: cancel "
-	// Calculate remaining dash width: modalWidth - corners(2) - hints length
-	remainingDashes := modalWidth - 2 - len(hints)
+	// Calculate remaining dash width: modalWidth - corners(2) - hints rune count
+	hintsWidth := utf8.RuneCountInString(hints)
+	remainingDashes := modalWidth - 2 - hintsWidth
 	if remainingDashes > 0 {
 		b.WriteString("\033[2m")
 		b.WriteString(hints)
@@ -477,7 +489,7 @@ func (m *Modal) ShowInput(title, message, placeholder string, onOK func(string) 
 	m.Show()
 }
 
-// wrapText wraps text to fit within a given width
+// wrapText wraps text to fit within a given width (measured in runes/characters)
 func wrapText(text string, width int) []string {
 	if width <= 0 {
 		return []string{text}
@@ -492,9 +504,12 @@ func wrapText(text string, width int) []string {
 	var currentLine strings.Builder
 
 	for _, word := range words {
-		if currentLine.Len() == 0 {
+		wordWidth := utf8.RuneCountInString(word)
+		currentWidth := utf8.RuneCountInString(currentLine.String())
+
+		if currentWidth == 0 {
 			currentLine.WriteString(word)
-		} else if currentLine.Len()+1+len(word) <= width {
+		} else if currentWidth+1+wordWidth <= width {
 			currentLine.WriteString(" ")
 			currentLine.WriteString(word)
 		} else {

@@ -1,0 +1,227 @@
+# TUI Components
+
+Claude Code-inspired components for building sophisticated terminal UIs.
+
+## Available Components
+
+### 1. ActivityBar
+
+Animated status line with spinner, elapsed time, and progress indicators.
+
+**Features:**
+- Spinning animation (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏)
+- Elapsed time display (14s, 1m 14s format)
+- Progress indicators (e.g., "↓ 2.5k tokens")
+- Cancelable with Esc key
+- Automatic color themes
+
+**Example:**
+```go
+activityBar := tui.NewActivityBar()
+activityBar.Start("Actualizing…")
+activityBar.SetProgress("↓ 2.5k tokens")
+// ... later
+activityBar.Stop()
+```
+
+**Output:**
+```
+✳ Actualizing… (esc to interrupt · 1m 14s · ↓ 2.5k tokens)
+```
+
+---
+
+### 2. ToolBlock
+
+Collapsible content blocks for displaying tool execution results.
+
+**Features:**
+- Collapsible/expandable output
+- Line numbers for code files
+- Tree-style indentation
+- "... +N lines" summary when collapsed
+- Tool-specific icons (⏺)
+- Ctrl+O or Enter to expand/collapse
+
+**Options:**
+- `WithLineNumbers()` - Show line numbers (for code)
+- `WithMaxLines(n)` - Limit visible lines when collapsed
+
+**Example:**
+```go
+block := tui.NewToolBlock(
+    "Bash",
+    "go test -v",
+    []string{"=== RUN   TestFoo", "--- PASS: TestFoo (0.00s)"},
+    tui.WithMaxLines(3),
+)
+```
+
+**Output (Collapsed):**
+```
+⏺ Bash(go test -v)
+  ⎿  === RUN   TestFoo
+     --- PASS: TestFoo (0.00s)
+     === RUN   TestBar
+     … +12 lines (ctrl+o to expand)
+```
+
+**Output (Expanded):**
+```
+⏺ Bash(go test -v)
+  ⎿  === RUN   TestFoo
+     --- PASS: TestFoo (0.00s)
+     === RUN   TestBar
+     --- PASS: TestBar (0.00s)
+     PASS
+```
+
+**With Line Numbers:**
+```go
+block := tui.NewToolBlock(
+    "Write",
+    "main.go",
+    []string{"package main", "", "func main() {", "    fmt.Println(\"hello\")", "}"},
+    tui.WithLineNumbers(),
+)
+```
+
+**Output:**
+```
+⏺ Write(main.go)
+  ⎿    1 package main
+       2
+       3 func main() {
+       4     fmt.Println("hello")
+       5 }
+```
+
+---
+
+### 3. StatusBar
+
+Simple status bar with message and keybindings.
+
+**Features:**
+- Left-aligned status message
+- Right-aligned keybinding hints
+- Visual feedback when focused (inverted colors)
+- Auto-truncation for narrow terminals
+
+**Example:**
+```go
+statusBar := tui.NewStatusBar()
+statusBar.SetMessage("Processing files...")
+```
+
+**Output:**
+```
+Processing files...                                    Tab: Focus • q: Quit
+```
+
+---
+
+### 4. Application
+
+Container for managing multiple components with focus.
+
+**Features:**
+- Component lifecycle management (Init, Update, View, Focus, Blur)
+- Tab/Shift+Tab focus navigation
+- Window size handling
+- Quit keys (q, Ctrl+C)
+
+**Example:**
+```go
+app := tui.NewApplication()
+
+activityBar := tui.NewActivityBar()
+toolBlock := tui.NewToolBlock("Bash", "ls", []string{"file1", "file2"})
+
+app.AddComponent(activityBar)
+app.AddComponent(toolBlock)
+
+p := tea.NewProgram(app, tea.WithAltScreen())
+p.Run()
+```
+
+---
+
+## Component Interface
+
+All components implement:
+
+```go
+type Component interface {
+    Init() tea.Cmd
+    Update(msg tea.Msg) (Component, tea.Cmd)
+    View() string
+    Focus()
+    Blur()
+    Focused() bool
+}
+```
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| Tab | Focus next component |
+| Shift+Tab | Focus previous component |
+| Ctrl+O or Enter | Expand/collapse ToolBlock |
+| Esc | Interrupt active ActivityBar |
+| q or Ctrl+C | Quit application |
+
+---
+
+## Examples
+
+### Basic Demo
+```bash
+go run examples/basic/main.go
+```
+
+### Claude Code Style Demo
+```bash
+go run examples/claude_demo_output/main.go
+```
+
+### Interactive Demo
+```bash
+go run examples/claude_code_demo/main.go
+```
+
+---
+
+## Future Components (Planned)
+
+- **FileExplorer**: Tree view with navigation and search
+- **CommandPalette**: Fuzzy-searchable command launcher
+- **Editor**: Text viewing/editing with syntax highlighting
+- **Modal**: Dialog boxes for confirmations and inputs
+- **Tabs**: Multi-view tab management
+- **SidePanel**: Collapsible side panels with sections
+- **SearchResults**: Searchable result lists with context
+
+---
+
+## Integration with SCKelemen Stack
+
+Future v2 components will leverage:
+
+- **cli/renderer**: Double-buffered screen rendering, ANSI output
+- **layout**: Flexbox/grid layouts for complex UIs
+- **text**: Unicode-aware text width measurement
+- **design-system**: Design tokens and theme management
+- **color**: OKLCH color space, gradients, accessibility
+- **units**: CSS-like units (px, ch, vw, vh)
+
+**Status**: v1 components use simple ANSI rendering for immediate usability. v2 refactor will add full stack integration when all packages are public.
+
+---
+
+## License
+
+Bearware 1.0

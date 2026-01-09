@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Claude Code-Style TUI Components Demo ===\n")
+	fmt.Println("=== Claude Code-Style TUI Components Demo ===")
 
 	// Demo 1: Activity Bar
 	fmt.Println("1. Animated Activity Bar:")

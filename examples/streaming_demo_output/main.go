@@ -8,10 +8,10 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Streaming ToolBlock Components Demo ===\n")
+	fmt.Println("=== Streaming ToolBlock Components Demo ===")
 
 	// 1. Running/Streaming State
-	fmt.Println("1. ToolBlock in Streaming Mode (Running):\n")
+	fmt.Println("1. ToolBlock in Streaming Mode (Running):")
 
 	runningBlock := tui.NewToolBlock(
 		"Bash",
@@ -24,7 +24,7 @@ func main() {
 	fmt.Println(runningBlock.View())
 
 	// 2. Streaming with Partial Output
-	fmt.Println("\n2. ToolBlock Streaming with Partial Output:\n")
+	fmt.Println("\n2. ToolBlock Streaming with Partial Output:")
 
 	streamingBlock := tui.NewToolBlock(
 		"Bash",
@@ -42,7 +42,7 @@ func main() {
 	fmt.Println(streamingBlock.View())
 
 	// 3. Complete Status (Success)
-	fmt.Println("\n3. ToolBlock Complete (Success ✓):\n")
+	fmt.Println("\n3. ToolBlock Complete (Success ✓):")
 
 	completeBlock := tui.NewToolBlock(
 		"Bash",
@@ -65,7 +65,7 @@ func main() {
 	fmt.Println(completeBlock.View())
 
 	// 4. Error Status
-	fmt.Println("\n4. ToolBlock with Error (✗):\n")
+	fmt.Println("\n4. ToolBlock with Error (✗):")
 
 	errorBlock := tui.NewToolBlock(
 		"Bash",
@@ -85,7 +85,7 @@ func main() {
 	fmt.Println(errorBlock.View())
 
 	// 5. Warning Status
-	fmt.Println("\n5. ToolBlock with Warning (⚠):\n")
+	fmt.Println("\n5. ToolBlock with Warning (⚠):")
 
 	warningBlock := tui.NewToolBlock(
 		"Bash",
@@ -104,7 +104,7 @@ func main() {
 	fmt.Println(warningBlock.View())
 
 	// 6. API Methods Demo
-	fmt.Println("\n6. API Methods for Streaming:\n")
+	fmt.Println("\n6. API Methods for Streaming:")
 
 	apiBlock := tui.NewToolBlock(
 		"Bash",
@@ -125,7 +125,7 @@ func main() {
 	fmt.Println(apiBlock.View())
 
 	// Feature Summary
-	fmt.Println("\n✓ All streaming features working!\n")
+	fmt.Println("\n✓ All streaming features working!")
 	fmt.Println("Features:")
 	fmt.Println("  • Real-time output streaming with AppendLine() and AppendLines()")
 	fmt.Println("  • Status indicators: ✓ (success), ✗ (error), ⚠ (warning)")
@@ -137,7 +137,7 @@ func main() {
 	fmt.Println("\nRun 'go run examples/streaming_demo/main.go' for interactive demo")
 
 	// 7. Multiple Blocks in Different States
-	fmt.Println("\n\n=== Multiple ToolBlocks in Various States ===\n")
+	fmt.Println("\n\n=== Multiple ToolBlocks in Various States ===")
 
 	blocks := []*tui.ToolBlock{
 		tui.NewToolBlock("Bash", "git status", []string{"On branch main"}, tui.WithStatus(tui.StatusComplete)),

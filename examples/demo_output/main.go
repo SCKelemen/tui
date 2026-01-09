@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== TUI Framework Demo ===\n")
+	fmt.Println("=== TUI Framework Demo ===")
 
 	// Create app
 	app := tui.NewApplication()

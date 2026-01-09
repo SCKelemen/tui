@@ -9,10 +9,10 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Claude Code-Style Input Components Demo ===\n")
+	fmt.Println("=== Claude Code-Style Input Components Demo ===")
 
 	// 1. TextInput Component
-	fmt.Println("1. TextInput Component (Multi-line text entry):\n")
+	fmt.Println("1. TextInput Component (Multi-line text entry):")
 
 	textInput := tui.NewTextInput()
 	textInput.SetValue("This is a sample message\nwith multiple lines\nfor demonstration.")
@@ -24,7 +24,7 @@ func main() {
 	fmt.Println(textInput.View())
 
 	// 2. CommandPalette Component
-	fmt.Println("\n2. CommandPalette Component (Quick command launcher):\n")
+	fmt.Println("\n2. CommandPalette Component (Quick command launcher):")
 
 	commands := []tui.Command{
 		{
@@ -78,7 +78,7 @@ func main() {
 	fmt.Println(palette.View())
 
 	// 3. Command Palette with Search
-	fmt.Println("\n3. CommandPalette with Search Filter ('file'):\n")
+	fmt.Println("\n3. CommandPalette with Search Filter ('file'):")
 
 	palette2 := tui.NewCommandPalette(commands)
 	palette2.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -94,7 +94,7 @@ func main() {
 	fmt.Println(palette2.View())
 
 	// 4. Feature Summary
-	fmt.Println("\n✓ All input components rendering correctly!\n")
+	fmt.Println("\n✓ All input components rendering correctly!")
 	fmt.Println("Features:")
 	fmt.Println("  • TextInput: Multi-line text entry with Ctrl+J submit, Ctrl+D clear")
 	fmt.Println("  • CommandPalette: Quick command launcher with fuzzy search")
@@ -105,7 +105,7 @@ func main() {
 	fmt.Println("\nRun 'go run examples/input_demo/main.go' for interactive demo")
 
 	// 5. Integration Example
-	fmt.Println("\n\n=== Integration with Other Components ===\n")
+	fmt.Println("\n\n=== Integration with Other Components ===")
 
 	// Show how it looks with activity bar and tool blocks
 	activityBar := tui.NewActivityBar()

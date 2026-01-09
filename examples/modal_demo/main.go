@@ -229,8 +229,9 @@ func (m model) View() string {
 	b.WriteString(m.app.View())
 
 	// Message history
+	boxWidth := 70
 	b.WriteString("\n\033[2m┌─ Action History ─")
-	b.WriteString(strings.Repeat("─", 50))
+	b.WriteString(strings.Repeat("─", boxWidth-19)) // 19 = len("┌─ Action History ─")
 	b.WriteString("┐\033[0m\n")
 
 	// Show last 5 messages
@@ -241,12 +242,23 @@ func (m model) View() string {
 
 	for i := startIdx; i < len(m.messages); i++ {
 		b.WriteString("\033[2m│\033[0m ")
-		b.WriteString(m.messages[i])
-		b.WriteString("\n")
+		msg := m.messages[i]
+		// Truncate if too long
+		maxMsgWidth := boxWidth - 4 // Account for "│ " and " │"
+		if len(msg) > maxMsgWidth {
+			msg = msg[:maxMsgWidth-3] + "..."
+		}
+		b.WriteString(msg)
+		// Pad to width
+		padding := maxMsgWidth - len(msg)
+		if padding > 0 {
+			b.WriteString(strings.Repeat(" ", padding))
+		}
+		b.WriteString(" \033[2m│\033[0m\n")
 	}
 
 	b.WriteString("\033[2m└")
-	b.WriteString(strings.Repeat("─", 69))
+	b.WriteString(strings.Repeat("─", boxWidth-2))
 	b.WriteString("┘\033[0m\n\n")
 
 	b.WriteString("\033[2m")

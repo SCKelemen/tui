@@ -247,8 +247,11 @@ func (m *Modal) View() string {
 	titleText := "── " + title + " "
 	b.WriteString(titleText)
 	// Calculate remaining width using rune count for visual width
+	// Line structure: ╭─<titleText><dashes>╮
+	// Total = 1(╭) + 1(─) + titleWidth + dashes + 1(╮) = modalWidth
+	// So: dashes = modalWidth - titleWidth - 3
 	titleWidth := utf8.RuneCountInString(titleText)
-	remainingWidth := modalWidth - titleWidth - 4 // Account for ╭─ (2) and ╮ (1), plus the ─ we'll add (1)
+	remainingWidth := modalWidth - titleWidth - 3
 	if remainingWidth > 0 {
 		b.WriteString(strings.Repeat("─", remainingWidth))
 	}

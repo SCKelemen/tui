@@ -412,5 +412,9 @@ func (fe *FileExplorer) getDepth(node *FileNode) int {
 		depth++
 		current = current.Parent
 	}
-	return depth - 1 // Don't count the root
+	// Don't count the root, but ensure we never return negative
+	if depth > 0 {
+		return depth - 1
+	}
+	return 0
 }

@@ -241,25 +241,20 @@ func (m *Modal) View() string {
 		b.WriteString("\n")
 	}
 
-	// Title bar
+	// Top border with integrated title
 	b.WriteString(strings.Repeat(" ", startX))
-	b.WriteString("\033[1;44m") // Blue background
+	b.WriteString("╭─")
 	title := m.title
 	if title == "" {
 		title = "Dialog"
 	}
-	title = " " + title + " "
-	padding := (modalWidth - len(title)) / 2
-	b.WriteString(strings.Repeat(" ", padding))
-	b.WriteString(title)
-	b.WriteString(strings.Repeat(" ", modalWidth-padding-len(title)))
-	b.WriteString("\033[0m\n")
-
-	// Top border
-	b.WriteString(strings.Repeat(" ", startX))
-	b.WriteString("┌")
-	b.WriteString(strings.Repeat("─", modalWidth-2))
-	b.WriteString("┐\n")
+	titleText := "── " + title + " "
+	b.WriteString(titleText)
+	remainingWidth := modalWidth - len(titleText) - 3
+	if remainingWidth > 0 {
+		b.WriteString(strings.Repeat("─", remainingWidth))
+	}
+	b.WriteString("─╮\n")
 
 	// Empty line
 	b.WriteString(strings.Repeat(" ", startX))
@@ -347,7 +342,7 @@ func (m *Modal) View() string {
 
 	// Bottom border with hints
 	b.WriteString(strings.Repeat(" ", startX))
-	b.WriteString("└")
+	b.WriteString("╰")
 	hints := " Tab: navigate · Enter: confirm · Esc: cancel "
 	b.WriteString("\033[2m")
 	b.WriteString(hints)
@@ -355,7 +350,7 @@ func (m *Modal) View() string {
 	if len(hints) < modalWidth-2 {
 		b.WriteString(strings.Repeat("─", modalWidth-len(hints)-2))
 	}
-	b.WriteString("┘\n")
+	b.WriteString("╯\n")
 
 	return b.String()
 }

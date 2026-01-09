@@ -1,3 +1,6 @@
+//go:build stack
+// +build stack
+
 package tui
 
 import (

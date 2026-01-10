@@ -4,11 +4,20 @@ The Dashboard system provides a powerful, responsive grid layout for displaying 
 
 ## Overview
 
-The Dashboard consists of three main components:
+The Dashboard system is **fully interactive** with keyboard navigation, focus management, and drill-down capabilities. It consists of four main components:
 
-1. **Layout Helpers** (`layout_helpers.go`) - Reusable layout patterns
-2. **StatCard** (`statcard.go`) - Individual metric cards with sparklines
-3. **Dashboard** (`dashboard.go`) - Grid container for organizing cards
+1. **Dashboard** (`dashboard.go`) - Interactive grid container with keyboard navigation
+2. **StatCard** (`statcard.go`) - Individual metric cards with visual focus states
+3. **DetailModal** (`detailmodal.go`) - Drill-down view for detailed metrics
+4. **Layout Helpers** (`layout_helpers.go`) - Reusable layout patterns
+
+### Key Features
+- ⌨️  **Keyboard Navigation**: Arrow keys (←→↑↓) and vim bindings (hjkl)
+- 🎯 **Focus Management**: Visual states (focused, selected, normal)
+- 📊 **Drill-Down**: Press Enter on any card to view detailed modal
+- 📈 **Large Trend Graphs**: 8-line graphs in modal view
+- 📉 **Statistics**: Min, max, avg calculations
+- 🔄 **Real-Time Updates**: Live metric updates with smooth transitions
 
 ## Components
 
@@ -66,6 +75,42 @@ Sparklines use Unicode block characters to visualize trends:
 - Maps values to 8 block characters
 - Samples data if more points than available width
 - Renders with configurable trend color
+
+#### Visual Focus States
+
+StatCards have three visual states indicated by different border styles:
+
+**Normal State** (thin borders `┌─┐ │ └─┘`):
+```
+┌──────────────────────────┐
+│ CPU Usage                │
+│ 42%                      │
+│ ↑ 5 (13.5%)             │
+│ ▁▂▃▄▅▆▇█                │
+└──────────────────────────┘
+```
+
+**Focused State** (double-line cyan borders `╔═╗ ║ ╚═╝`):
+```
+╔══════════════════════════╗
+║ CPU Usage                ║
+║ 42%                      ║
+║ ↑ 5 (13.5%)             ║
+║ ▁▂▃▄▅▆▇█                ║
+╚══════════════════════════╝
+```
+
+**Selected State** (thick yellow borders `┏━┓ ┃ ┗━┛`):
+```
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ CPU Usage                ┃
+┃ 42%                      ┃
+┃ ↑ 5 (13.5%)             ┃
+┃ ▁▂▃▄▅▆▇█                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
+Focus takes priority over selection in rendering.
 
 ### Dashboard
 
@@ -132,6 +177,118 @@ cards := dashboard.GetCards()
 - Always displays specified number of columns
 - Cards scale to fit available width
 - Perfect for consistent layouts regardless of terminal size
+
+### Interactive Features
+
+#### Keyboard Navigation
+
+The Dashboard supports full keyboard navigation with both arrow keys and vim-style bindings.
+
+**Navigation Keys**:
+```
+←/h - Move focus left
+→/l - Move focus right
+↑/k - Move focus up (grid-aware)
+↓/j - Move focus down (grid-aware)
+Enter - Open DetailModal for focused card
+ESC - Close modal / clear selection
+```
+
+**Enabling Navigation**:
+```go
+dashboard := tui.NewDashboard(
+    tui.WithCards(cards...),
+)
+dashboard.Focus() // Enable keyboard navigation
+```
+
+**Grid-Aware Navigation**:
+- Up/Down navigation respects column layout
+- With 3 columns: card 0 → (down) → card 3
+- Stops at boundaries (no wrapping)
+- Works with both responsive and fixed layouts
+
+**Example**:
+```go
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        if msg.String() == "q" {
+            return m, tea.Quit
+        }
+        // Forward all other keys to dashboard
+        m.dashboard.Update(msg)
+    }
+    return m, nil
+}
+```
+
+#### DetailModal
+
+Press **Enter** on any focused card to open a detailed modal view with:
+
+**Features**:
+- **Large Trend Graph**: 8-line graph using Unicode blocks (▀▄█)
+- **Statistics**: Min, max, average values
+- **Change Indicator**: Detailed change information
+- **Subtitle**: Additional context
+- **Historical Data**: Optional history entries
+- **Centered Display**: 70% width, 80% height
+- **Close Controls**: ESC or 'q' to close
+
+**Modal View Example**:
+```
+╔══════════════════════════════════════════════════════════╗
+║ CPU Usage                           [ESC to close]        ║
+╠══════════════════════════════════════════════════════════╣
+║                                                            ║
+║   42%                                                      ║
+║                                                            ║
+║   ↑ 5 (+13.5%)                                            ║
+║                                                            ║
+║   8 cores active                                          ║
+║                                                            ║
+║   Trend (Last 30 data points):                            ║
+║                                                            ║
+║     ██████▀▀▀                                             ║
+║    ██    ██  ▄▄▄                                          ║
+║   ██      ████  ██                                        ║
+║  ██              ██▄▄                                     ║
+║ ██                  ███▄                                  ║
+║██                      ███                                ║
+║                          ██▄                              ║
+║                            ██                             ║
+║                                                            ║
+║   Min: 35.0  Max: 50.0  Avg: 42.5                        ║
+║                                                            ║
+╚══════════════════════════════════════════════════════════╝
+```
+
+**Automatic Content Population**:
+```go
+// When user presses Enter, the modal is automatically populated
+// from the focused StatCard's data (title, value, trend, etc.)
+```
+
+**Modal Integration**:
+The Dashboard handles modal lifecycle automatically:
+1. User presses Enter → Dashboard calls `openDetailModal()`
+2. Modal populated with card content via `SetContent(card)`
+3. Modal shown with `Show()`, dashboard loses focus
+4. User presses ESC → Modal hidden with `Hide()`, dashboard regains focus
+
+**Focus Flow**:
+```
+Dashboard (focused)
+  → User presses Enter
+  → DetailModal (focused)
+  → Dashboard (blurred)
+
+DetailModal (focused)
+  → User presses ESC
+  → DetailModal (hidden)
+  → Dashboard (focused)
+```
 
 ### Layout Helpers
 
@@ -392,19 +549,53 @@ card := tui.NewStatCard(
 
 ## Testing
 
-The Dashboard system includes comprehensive test coverage:
+The Dashboard system has **comprehensive test coverage** with tests for all features:
 
-- **Layout Helpers**: 18 tests covering all helper functions
-- **Dashboard**: 27 tests for creation, updates, and rendering
-- **StatCard**: 28 tests for options, rendering, and sparklines
-- **Total**: 73 new tests (bringing total to 312)
+**Dashboard Tests** (32 tests):
+- Creation and configuration
+- Card management (add, remove, set)
+- Window size updates and responsive layout
+- **Keyboard navigation** (up, down, left, right, vim keys)
+- **Focus management** (initial focus, boundaries, grid-aware)
+- **Selection and clearing**
+- Column count calculation
+- Rendering
+
+**StatCard Tests** (33 tests):
+- Creation with all options
+- **Visual states** (normal, focused, selected, priority)
+- **Border rendering** for each state
+- Change indicators and sparklines
+- Truncation and ANSI-aware lengths
+- Window size handling
+- Edge cases (narrow, empty, constant values)
+
+**DetailModal Tests** (21 tests):
+- Creation, show/hide, visibility
+- Content population from StatCards
+- **Keyboard handling** (ESC, 'q' to close)
+- **Focus and state management**
+- **Large trend graph rendering** (8-line graphs)
+- Statistics calculation (min, max, avg)
+- Historical data display
+- Modal dimensions and centering
+- **Integration with Dashboard**
+
+**Layout Helpers Tests** (18 tests):
+- All 15+ layout helper functions
+- Grid, column, and stack layouts
+- Centering and positioning
+
+**Total**: **104 dashboard-related tests** out of 354 total tests
 
 Run tests:
 ```bash
-go test -v
-go test -run TestDashboard
-go test -run TestStatCard
-go test -run TestLayoutHelper
+go test -v                       # All tests
+go test -run TestDashboard       # Dashboard navigation tests
+go test -run TestStatCard        # StatCard rendering & states
+go test -run TestDetailModal     # Modal tests
+go test -run TestLayoutHelper    # Layout helpers
+go test -cover ./...            # With coverage report (82.9%)
 ```
 
 ## Performance

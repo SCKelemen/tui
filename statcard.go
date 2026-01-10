@@ -164,7 +164,11 @@ func (s *StatCard) renderSimple() string {
 	b.WriteString("│ ")
 	valueStr := "\033[1m" + s.value + "\033[0m" // Bold
 	b.WriteString(valueStr)
-	b.WriteString(strings.Repeat(" ", contentWidth-len(s.value)))
+	// Use visible length to account for ANSI codes
+	visibleValueLen := s.visibleLength(valueStr)
+	if visibleValueLen < contentWidth {
+		b.WriteString(strings.Repeat(" ", contentWidth-visibleValueLen))
+	}
 	b.WriteString(" │\n")
 
 	// Change indicator row
@@ -174,7 +178,9 @@ func (s *StatCard) renderSimple() string {
 		b.WriteString(changeStr)
 		// Calculate visible length (without ANSI codes)
 		visibleLen := s.visibleLength(changeStr)
-		b.WriteString(strings.Repeat(" ", contentWidth-visibleLen))
+		if visibleLen < contentWidth {
+			b.WriteString(strings.Repeat(" ", contentWidth-visibleLen))
+		}
 		b.WriteString(" │\n")
 	}
 
@@ -355,20 +361,26 @@ func (s *StatCard) renderWithLayout() string {
 	return screen.String()
 }
 
-// truncate truncates a string to fit within width
+// truncate truncates a string to fit within width (using rune count for better unicode support)
 func (s *StatCard) truncate(str string, width int) string {
-	if len(str) <= width {
-		return str + strings.Repeat(" ", width-len(str))
+	runes := []rune(str)
+	runeLen := len(runes)
+
+	if runeLen <= width {
+		return str + strings.Repeat(" ", width-runeLen)
 	}
 	if width > 3 {
-		return str[:width-3] + "..."
+		return string(runes[:width-3]) + "..."
 	}
-	return str[:width]
+	if width > 0 {
+		return string(runes[:width])
+	}
+	return ""
 }
 
-// visibleLength calculates the visible length of a string (excluding ANSI codes)
+// visibleLength calculates the visible length of a string (excluding ANSI codes, counting runes)
 func (s *StatCard) visibleLength(str string) int {
-	// Simple approach: count non-ANSI characters
+	// Count runes while skipping ANSI escape sequences
 	inEscape := false
 	count := 0
 	for _, ch := range str {

@@ -163,6 +163,9 @@ func initialModel() model {
 		),
 	)
 
+	// Enable keyboard navigation
+	dashboard.Focus()
+
 	return model{
 		dashboard: dashboard,
 		startTime: time.Now(),
@@ -180,12 +183,16 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle quit/refresh first
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "r":
 			// Refresh - regenerate data
 			return initialModel(), tickCmd()
+		default:
+			// Forward other keys to dashboard for navigation
+			m.dashboard.Update(msg)
 		}
 
 	case tea.WindowSizeMsg:
@@ -250,7 +257,7 @@ func (m model) View() string {
 	// Add footer with help
 	s += "\n"
 	elapsed := time.Since(m.startTime).Round(time.Second)
-	footer := fmt.Sprintf("Uptime: %s | Press 'r' to refresh, 'q' to quit", elapsed)
+	footer := fmt.Sprintf("Uptime: %s | ←→↑↓ navigate | enter select | esc deselect | r refresh | q quit", elapsed)
 	s += footer
 
 	return s

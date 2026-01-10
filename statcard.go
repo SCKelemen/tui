@@ -13,10 +13,11 @@ import (
 
 // StatCard displays a metric with title, value, change indicator, and optional sparkline
 type StatCard struct {
-	width   int
-	height  int
-	focused bool
-	tokens  *design.DesignTokens
+	width    int
+	height   int
+	focused  bool
+	selected bool // True when card is selected for drill-down
+	tokens   *design.DesignTokens
 
 	// Content
 	title      string
@@ -140,6 +141,66 @@ func (s *StatCard) Focused() bool {
 	return s.focused
 }
 
+// Select marks the card as selected (for drill-down)
+func (s *StatCard) Select() {
+	s.selected = true
+}
+
+// Deselect marks the card as not selected
+func (s *StatCard) Deselect() {
+	s.selected = false
+}
+
+// IsSelected returns whether this card is selected
+func (s *StatCard) IsSelected() bool {
+	return s.selected
+}
+
+// borderStyle holds the border characters and color for rendering
+type borderStyle struct {
+	topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical string
+	color                                                            string
+}
+
+// getBorderStyle returns the appropriate border style based on focus/selection state
+func (s *StatCard) getBorderStyle() borderStyle {
+	if s.focused {
+		// Focused: double-line border with cyan
+		return borderStyle{
+			topLeft: "╔", topRight: "╗",
+			bottomLeft: "╚", bottomRight: "╝",
+			horizontal: "═", vertical: "║",
+			color: "\033[36m", // Cyan
+		}
+	} else if s.selected {
+		// Selected: thick border with yellow
+		return borderStyle{
+			topLeft: "┏", topRight: "┓",
+			bottomLeft: "┗", bottomRight: "┛",
+			horizontal: "━", vertical: "┃",
+			color: "\033[33m", // Yellow
+		}
+	}
+	// Normal: thin border
+	return borderStyle{
+		topLeft: "┌", topRight: "┐",
+		bottomLeft: "└", bottomRight: "┘",
+		horizontal: "─", vertical: "│",
+		color: "",
+	}
+}
+
+// writeBorder writes a border character with optional color
+func (s *StatCard) writeBorder(b *strings.Builder, char string, style borderStyle) {
+	if style.color != "" {
+		b.WriteString(style.color)
+	}
+	b.WriteString(char)
+	if style.color != "" {
+		b.WriteString("\033[0m")
+	}
+}
+
 // renderSimple provides string-based rendering
 func (s *StatCard) renderSimple() string {
 	var b strings.Builder
@@ -150,18 +211,26 @@ func (s *StatCard) renderSimple() string {
 		contentWidth = 10
 	}
 
+	// Get border style
+	style := s.getBorderStyle()
+
 	// Top border
-	b.WriteString("┌")
-	b.WriteString(strings.Repeat("─", s.width-2))
-	b.WriteString("┐\n")
+	s.writeBorder(&b, style.topLeft, style)
+	s.writeBorder(&b, strings.Repeat(style.horizontal, s.width-2), style)
+	s.writeBorder(&b, style.topRight, style)
+	b.WriteString("\n")
 
 	// Title row
-	b.WriteString("│ ")
+	s.writeBorder(&b, style.vertical, style)
+	b.WriteString(" ")
 	b.WriteString(s.truncate(s.title, contentWidth))
-	b.WriteString(" │\n")
+	b.WriteString(" ")
+	s.writeBorder(&b, style.vertical, style)
+	b.WriteString("\n")
 
 	// Value row
-	b.WriteString("│ ")
+	s.writeBorder(&b, style.vertical, style)
+	b.WriteString(" ")
 	valueStr := "\033[1m" + s.value + "\033[0m" // Bold
 	b.WriteString(valueStr)
 	// Use visible length to account for ANSI codes
@@ -169,11 +238,14 @@ func (s *StatCard) renderSimple() string {
 	if visibleValueLen < contentWidth {
 		b.WriteString(strings.Repeat(" ", contentWidth-visibleValueLen))
 	}
-	b.WriteString(" │\n")
+	b.WriteString(" ")
+	s.writeBorder(&b, style.vertical, style)
+	b.WriteString("\n")
 
 	// Change indicator row
 	if s.change != 0 || s.changePct != 0 {
-		b.WriteString("│ ")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString(" ")
 		changeStr := s.renderChange()
 		b.WriteString(changeStr)
 		// Calculate visible length (without ANSI codes)
@@ -181,22 +253,30 @@ func (s *StatCard) renderSimple() string {
 		if visibleLen < contentWidth {
 			b.WriteString(strings.Repeat(" ", contentWidth-visibleLen))
 		}
-		b.WriteString(" │\n")
+		b.WriteString(" ")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString("\n")
 	}
 
 	// Subtitle row
 	if s.subtitle != "" {
-		b.WriteString("│ ")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString(" ")
 		b.WriteString(s.truncate(s.subtitle, contentWidth))
-		b.WriteString(" │\n")
+		b.WriteString(" ")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString("\n")
 	}
 
 	// Sparkline row
 	if len(s.trend) > 0 {
-		b.WriteString("│ ")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString(" ")
 		sparkline := s.renderSparkline(contentWidth)
 		b.WriteString(sparkline)
-		b.WriteString(" │\n")
+		b.WriteString(" ")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString("\n")
 	}
 
 	// Fill remaining height
@@ -212,16 +292,18 @@ func (s *StatCard) renderSimple() string {
 	}
 
 	for currentHeight < s.height-1 {
-		b.WriteString("│")
+		s.writeBorder(&b, style.vertical, style)
 		b.WriteString(strings.Repeat(" ", s.width-2))
-		b.WriteString("│\n")
+		s.writeBorder(&b, style.vertical, style)
+		b.WriteString("\n")
 		currentHeight++
 	}
 
 	// Bottom border
-	b.WriteString("└")
-	b.WriteString(strings.Repeat("─", s.width-2))
-	b.WriteString("┘\n")
+	s.writeBorder(&b, style.bottomLeft, style)
+	s.writeBorder(&b, strings.Repeat(style.horizontal, s.width-2), style)
+	s.writeBorder(&b, style.bottomRight, style)
+	b.WriteString("\n")
 
 	return b.String()
 }

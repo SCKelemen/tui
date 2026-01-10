@@ -26,6 +26,10 @@ type Dashboard struct {
 	// Cards
 	cards []*StatCard
 
+	// Navigation
+	focusedCardIndex int // Index of currently focused card (-1 = none)
+	selectedCardIndex int // Index of selected card for drill-down (-1 = none)
+
 	// Title
 	title string
 }
@@ -73,16 +77,24 @@ func WithCards(cards ...*StatCard) DashboardOption {
 // NewDashboard creates a new dashboard
 func NewDashboard(opts ...DashboardOption) *Dashboard {
 	d := &Dashboard{
-		columns:      3,
-		gap:          2,
-		minCardWidth: 30,
-		responsive:   true,
-		tokens:       design.DefaultTheme(),
-		cards:        []*StatCard{},
+		columns:           3,
+		gap:               2,
+		minCardWidth:      30,
+		responsive:        true,
+		tokens:            design.DefaultTheme(),
+		cards:             []*StatCard{},
+		focusedCardIndex:  -1, // No card focused initially
+		selectedCardIndex: -1, // No card selected initially
 	}
 
 	for _, opt := range opts {
 		opt(d)
+	}
+
+	// Focus first card if cards exist
+	if len(d.cards) > 0 {
+		d.focusedCardIndex = 0
+		d.cards[0].Focus()
 	}
 
 	return d
@@ -104,6 +116,27 @@ func (d *Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 		d.updateCardDimensions()
 
 		// Don't forward window size to cards - we already calculated their dimensions
+
+	case tea.KeyMsg:
+		// Only handle keys if dashboard is focused
+		if !d.focused {
+			return d, nil
+		}
+
+		switch msg.String() {
+		case "up", "k":
+			d.moveFocusUp()
+		case "down", "j":
+			d.moveFocusDown()
+		case "left", "h":
+			d.moveFocusLeft()
+		case "right", "l":
+			d.moveFocusRight()
+		case "enter":
+			d.toggleSelection()
+		case "esc":
+			d.clearSelection()
+		}
 	}
 
 	return d, nil
@@ -132,6 +165,121 @@ func (d *Dashboard) Blur() {
 // Focused returns whether this component is currently focused
 func (d *Dashboard) Focused() bool {
 	return d.focused
+}
+
+// moveFocusUp moves focus to the card above
+func (d *Dashboard) moveFocusUp() {
+	if len(d.cards) == 0 {
+		return
+	}
+
+	// Calculate current row and column
+	cols := d.getColumnCount()
+	newIndex := d.focusedCardIndex - cols
+	if newIndex >= 0 {
+		d.setFocusedCard(newIndex)
+	}
+}
+
+// moveFocusDown moves focus to the card below
+func (d *Dashboard) moveFocusDown() {
+	if len(d.cards) == 0 {
+		return
+	}
+
+	// Calculate current row and column
+	cols := d.getColumnCount()
+	newIndex := d.focusedCardIndex + cols
+	if newIndex < len(d.cards) {
+		d.setFocusedCard(newIndex)
+	}
+}
+
+// moveFocusLeft moves focus to the card on the left
+func (d *Dashboard) moveFocusLeft() {
+	if len(d.cards) == 0 {
+		return
+	}
+
+	newIndex := d.focusedCardIndex - 1
+	if newIndex >= 0 {
+		d.setFocusedCard(newIndex)
+	}
+}
+
+// moveFocusRight moves focus to the card on the right
+func (d *Dashboard) moveFocusRight() {
+	if len(d.cards) == 0 {
+		return
+	}
+
+	newIndex := d.focusedCardIndex + 1
+	if newIndex < len(d.cards) {
+		d.setFocusedCard(newIndex)
+	}
+}
+
+// toggleSelection toggles selection of the currently focused card
+func (d *Dashboard) toggleSelection() {
+	if d.focusedCardIndex < 0 || d.focusedCardIndex >= len(d.cards) {
+		return
+	}
+
+	if d.selectedCardIndex == d.focusedCardIndex {
+		// Deselect
+		d.cards[d.selectedCardIndex].Deselect()
+		d.selectedCardIndex = -1
+	} else {
+		// Deselect previous if any
+		if d.selectedCardIndex >= 0 && d.selectedCardIndex < len(d.cards) {
+			d.cards[d.selectedCardIndex].Deselect()
+		}
+		// Select current
+		d.selectedCardIndex = d.focusedCardIndex
+		d.cards[d.selectedCardIndex].Select()
+	}
+}
+
+// clearSelection clears the selection
+func (d *Dashboard) clearSelection() {
+	if d.selectedCardIndex >= 0 && d.selectedCardIndex < len(d.cards) {
+		d.cards[d.selectedCardIndex].Deselect()
+		d.selectedCardIndex = -1
+	}
+}
+
+// setFocusedCard sets the focused card by index
+func (d *Dashboard) setFocusedCard(index int) {
+	if index < 0 || index >= len(d.cards) {
+		return
+	}
+
+	// Blur previous card
+	if d.focusedCardIndex >= 0 && d.focusedCardIndex < len(d.cards) {
+		d.cards[d.focusedCardIndex].Blur()
+	}
+
+	// Focus new card
+	d.focusedCardIndex = index
+	d.cards[d.focusedCardIndex].Focus()
+}
+
+// getColumnCount returns the current number of columns in the grid
+func (d *Dashboard) getColumnCount() int {
+	if !d.responsive {
+		return d.columns
+	}
+
+	// Calculate responsive columns
+	availableWidth := float64(d.width)
+	cols := int(availableWidth / (d.minCardWidth + d.gap))
+	if cols < 1 {
+		cols = 1
+	}
+	if cols > len(d.cards) {
+		cols = len(d.cards)
+	}
+	return cols
 }
 
 // updateCardDimensions calculates and updates card dimensions based on grid layout

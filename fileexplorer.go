@@ -120,8 +120,19 @@ func (fe *FileExplorer) View() string {
 
 	// Header with current path
 	header := fmt.Sprintf("\033[1m📁 %s\033[0m", fe.basePath)
-	if len(header) > fe.width {
-		header = fmt.Sprintf("\033[1m📁 ...%s\033[0m", fe.basePath[len(fe.basePath)-(fe.width-10):])
+	headerLen := len(stripANSI(header))
+	if headerLen > fe.width && fe.width > 10 {
+		startPos := len(fe.basePath) - (fe.width - 10)
+		if startPos < 0 {
+			startPos = 0
+		}
+		if startPos > len(fe.basePath) {
+			startPos = len(fe.basePath)
+		}
+		header = fmt.Sprintf("\033[1m📁 ...%s\033[0m", fe.basePath[startPos:])
+	} else if fe.width <= 10 {
+		// Very narrow width, just show truncated
+		header = "\033[1m📁 ...\033[0m"
 	}
 	b.WriteString(header)
 	b.WriteString("\n")

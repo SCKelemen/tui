@@ -17,6 +17,8 @@ examples/*/input_demo
 examples/*/input_demo_output
 examples/*/streaming_demo
 examples/*/streaming_demo_output
+examples/*/kitchen_sink
+examples/*/kitchen_sink_inline
 fileexplorer_demo
 modal_demo
 

@@ -26,6 +26,7 @@ const (
 	DataStatusRunning
 	DataStatusSuccess
 	DataStatusError
+	DataStatusWarning
 	DataStatusInfo
 )
 
@@ -53,16 +54,18 @@ type StructuredData struct {
 	keyWidth       int        // Width for key column (auto-calculated if 0)
 	status         DataStatus // Current status (Running, Success, Error, Info)
 	animationFrame int        // Frame counter for blinking animation
+	runningColor   string     // ANSI color code for running status (default: white)
 }
 
 // NewStructuredData creates a new structured data component
 func NewStructuredData(title string, opts ...StructuredDataOption) *StructuredData {
 	sd := &StructuredData{
-		title:    title,
-		items:    []DataItem{},
-		expanded: true, // Default to expanded
-		icon:     "⏺",
-		keyWidth: 0, // Auto-calculate
+		title:        title,
+		items:        []DataItem{},
+		expanded:     true,       // Default to expanded
+		icon:         "⏺",
+		keyWidth:     0,          // Auto-calculate
+		runningColor: "\033[37m", // Default to white
 	}
 
 	for _, opt := range opts {
@@ -93,6 +96,13 @@ func WithKeyWidth(width int) StructuredDataOption {
 func WithStructuredDataIcon(icon string) StructuredDataOption {
 	return func(sd *StructuredData) {
 		sd.icon = icon
+	}
+}
+
+// WithRunningColor sets the color for the running status animation
+func WithRunningColor(color string) StructuredDataOption {
+	return func(sd *StructuredData) {
+		sd.runningColor = color
 	}
 }
 
@@ -328,6 +338,11 @@ func (sd *StructuredData) MarkError() {
 	sd.status = DataStatusError
 }
 
+// MarkWarning sets status to warning (yellow icon, no animation)
+func (sd *StructuredData) MarkWarning() {
+	sd.status = DataStatusWarning
+}
+
 // MarkInfo sets status to info (white icon, no animation)
 func (sd *StructuredData) MarkInfo() {
 	sd.status = DataStatusInfo
@@ -411,7 +426,7 @@ func (sd *StructuredData) renderIcon() string {
 	case DataStatusRunning:
 		// Blink: alternate between visible and invisible
 		if sd.animationFrame%2 == 0 {
-			return "\033[36m" + sd.icon + "\033[0m" // Cyan (visible)
+			return sd.runningColor + sd.icon + "\033[0m" // Configurable color (visible)
 		}
 		return " " // Invisible (blank space same width as icon)
 
@@ -420,6 +435,9 @@ func (sd *StructuredData) renderIcon() string {
 
 	case DataStatusError:
 		return "\033[31m" + sd.icon + "\033[0m" // Red
+
+	case DataStatusWarning:
+		return "\033[33m" + sd.icon + "\033[0m" // Yellow
 
 	case DataStatusInfo:
 		return "\033[37m" + sd.icon + "\033[0m" // White

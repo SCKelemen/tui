@@ -531,6 +531,28 @@ func TestStructuredDataDataStatusError(t *testing.T) {
 	}
 }
 
+func TestStructuredDataDataStatusWarning(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sd.AddRow("Key", "Value")
+
+	sd.MarkWarning()
+
+	if sd.GetStatus() != DataStatusWarning {
+		t.Error("Status should be Warning")
+	}
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+
+	// Yellow ANSI code should be present
+	if !strings.Contains(view, "\033[33m") {
+		t.Error("View should contain yellow color code for warning")
+	}
+}
+
 func TestStructuredDataDataStatusInfo(t *testing.T) {
 	sd := NewStructuredData("Test")
 	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -639,5 +661,32 @@ func TestStructuredDataBlinkingAnimation(t *testing.T) {
 	// Should see alternating patterns (blink on/off)
 	if views[0] == views[1] && views[1] == views[2] {
 		t.Error("Views should differ due to blinking animation")
+	}
+}
+
+func TestStructuredDataCustomRunningColor(t *testing.T) {
+	// Test with custom cyan color
+	sd := NewStructuredData("Test", WithRunningColor("\033[36m"))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.StartRunning()
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+
+	// Cyan ANSI code should be present (when icon is visible)
+	if !strings.Contains(view, "\033[36m") {
+		t.Error("View should contain custom cyan color code for running")
+	}
+}
+
+func TestStructuredDataDefaultRunningColor(t *testing.T) {
+	sd := NewStructuredData("Test")
+
+	// Default running color should be white
+	if sd.runningColor != "\033[37m" {
+		t.Errorf("Expected default running color to be white \\033[37m, got %q", sd.runningColor)
 	}
 }

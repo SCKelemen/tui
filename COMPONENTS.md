@@ -589,29 +589,35 @@ sd := tui.FromKeyValuePairs("Config",
 - `WithStructuredDataMaxLines(n)` - Collapse to N lines
 - `WithKeyWidth(width)` - Fixed width for key column (auto if 0)
 - `WithStructuredDataIcon(icon)` - Custom icon
+- `WithRunningColor(color)` - ANSI color code for running status (default: white "\033[37m")
 
 **Animated Status Icons:**
 
 The icon can animate and change color based on status:
 
 ```go
-// Start blinking animation (cyan)
+// Start blinking animation (default: white)
 cmd := sd.StartRunning()
 
 // Mark as complete with status-based color
 sd.MarkSuccess()  // Green icon
 sd.MarkError()    // Red icon
+sd.MarkWarning()  // Yellow icon
 sd.MarkInfo()     // White icon
 
 // Or use SetStatus directly
 cmd := sd.SetStatus(tui.DataStatusRunning)  // Blinking
 sd.SetStatus(tui.DataStatusSuccess)         // Green, no animation
+
+// Customize running color
+sd := tui.NewStructuredData("Task", tui.WithRunningColor("\033[36m")) // Cyan
 ```
 
 **Status Colors:**
-- `DataStatusRunning` - Blinking cyan icon (⏺)
+- `DataStatusRunning` - Blinking icon (default: white, configurable)
 - `DataStatusSuccess` - Static green icon (⏺)
 - `DataStatusError` - Static red icon (⏺)
+- `DataStatusWarning` - Static yellow icon (⏺)
 - `DataStatusInfo` - Static white icon (⏺)
 - `DataStatusNone` - Static cyan icon (⏺, default)
 

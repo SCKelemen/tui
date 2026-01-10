@@ -14,7 +14,8 @@ type model struct {
 	sd1    *tui.StructuredData // Running animation
 	sd2    *tui.StructuredData // Success
 	sd3    *tui.StructuredData // Error
-	sd4    *tui.StructuredData // Info
+	sd4    *tui.StructuredData // Warning
+	sd5    *tui.StructuredData // Info
 	width  int
 	height int
 	step   int
@@ -39,7 +40,13 @@ func initialModel() model {
 		AddRow("Error", "Connection timeout").
 		AddRow("Elapsed time", "15.2s")
 
-	sd4 := tui.NewStructuredData("Info Task").
+	sd4 := tui.NewStructuredData("Warning Task").
+		AddRow("Status", "Warning").
+		AddRow("Items processed", "450/500").
+		AddRow("Warning", "Rate limit approaching").
+		AddRow("Remaining", "50 requests")
+
+	sd5 := tui.NewStructuredData("Info Task").
 		AddRow("Status", "Informational").
 		AddRow("Message", "Configuration loaded").
 		AddRow("Version", "1.0.0")
@@ -49,6 +56,7 @@ func initialModel() model {
 		sd2:  sd2,
 		sd3:  sd3,
 		sd4:  sd4,
+		sd5:  sd5,
 		step: 0,
 	}
 }
@@ -90,9 +98,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case 2:
 			m.sd3.MarkError()
 		case 3:
-			m.sd4.MarkInfo()
+			m.sd4.MarkWarning()
 		case 4:
-			// Stop running animation after 8 seconds
+			m.sd5.MarkInfo()
+		case 5:
+			// Stop running animation after 10 seconds
 			m.sd1.MarkSuccess()
 		}
 
@@ -116,6 +126,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.sd4 = comp4.(*tui.StructuredData)
 	cmds = append(cmds, cmd4)
 
+	comp5, cmd5 := m.sd5.Update(msg)
+	m.sd5 = comp5.(*tui.StructuredData)
+	cmds = append(cmds, cmd5)
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -126,15 +140,17 @@ func (m model) View() string {
 
 	s := "\n=== Animated Status Icons Demo ===\n\n"
 	s += "Watch the icons animate and change color based on status!\n\n"
-	s += "  • Blinking cyan (⏺) = Running\n"
+	s += "  • Blinking white (⏺) = Running\n"
 	s += "  • Green (⏺) = Success\n"
 	s += "  • Red (⏺) = Error\n"
+	s += "  • Yellow (⏺) = Warning\n"
 	s += "  • White (⏺) = Info\n\n"
 
 	s += m.sd1.View() + "\n"
 	s += m.sd2.View() + "\n"
 	s += m.sd3.View() + "\n"
 	s += m.sd4.View() + "\n"
+	s += m.sd5.View() + "\n"
 
 	s += "\nPress 'q' to quit\n"
 

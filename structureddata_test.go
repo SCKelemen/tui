@@ -1,0 +1,460 @@
+package tui
+
+import (
+	"strings"
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func TestStructuredDataCreation(t *testing.T) {
+	sd := NewStructuredData("Test")
+	if sd == nil {
+		t.Fatal("NewStructuredData returned nil")
+	}
+
+	if sd.title != "Test" {
+		t.Errorf("Expected title 'Test', got %q", sd.title)
+	}
+
+	if !sd.expanded {
+		t.Error("StructuredData should be expanded by default")
+	}
+
+	if len(sd.items) != 0 {
+		t.Errorf("Expected 0 items initially, got %d", len(sd.items))
+	}
+}
+
+func TestStructuredDataAddRow(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddRow("Key1", "Value1")
+
+	if len(sd.items) != 1 {
+		t.Errorf("Expected 1 item, got %d", len(sd.items))
+	}
+
+	if sd.items[0].Type != ItemKeyValue {
+		t.Error("Item should be KeyValue type")
+	}
+
+	if sd.items[0].Key != "Key1" {
+		t.Errorf("Expected key 'Key1', got %q", sd.items[0].Key)
+	}
+
+	if sd.items[0].Value != "Value1" {
+		t.Errorf("Expected value 'Value1', got %q", sd.items[0].Value)
+	}
+}
+
+func TestStructuredDataBuilderPattern(t *testing.T) {
+	sd := NewStructuredData("Test").
+		AddRow("Key1", "Value1").
+		AddRow("Key2", "Value2").
+		AddHeader("Section").
+		AddIndentedRow("Key3", "Value3", 1)
+
+	if len(sd.items) != 4 {
+		t.Errorf("Expected 4 items, got %d", len(sd.items))
+	}
+
+	if sd.items[2].Type != ItemHeader {
+		t.Error("Third item should be Header type")
+	}
+
+	if sd.items[3].Indent != 1 {
+		t.Errorf("Fourth item should have indent 1, got %d", sd.items[3].Indent)
+	}
+}
+
+func TestStructuredDataAddHeader(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddHeader("Section 1")
+
+	if len(sd.items) != 1 {
+		t.Errorf("Expected 1 item, got %d", len(sd.items))
+	}
+
+	if sd.items[0].Type != ItemHeader {
+		t.Error("Item should be Header type")
+	}
+
+	if sd.items[0].Value != "Section 1" {
+		t.Errorf("Expected value 'Section 1', got %q", sd.items[0].Value)
+	}
+}
+
+func TestStructuredDataAddSeparator(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddSeparator()
+
+	if len(sd.items) != 1 {
+		t.Errorf("Expected 1 item, got %d", len(sd.items))
+	}
+
+	if sd.items[0].Type != ItemSeparator {
+		t.Error("Item should be Separator type")
+	}
+}
+
+func TestStructuredDataAddValue(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddValue("Plain text value")
+
+	if len(sd.items) != 1 {
+		t.Errorf("Expected 1 item, got %d", len(sd.items))
+	}
+
+	if sd.items[0].Type != ItemValue {
+		t.Error("Item should be Value type")
+	}
+
+	if sd.items[0].Value != "Plain text value" {
+		t.Errorf("Expected value 'Plain text value', got %q", sd.items[0].Value)
+	}
+}
+
+func TestStructuredDataIndentation(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddIndentedRow("Key", "Value", 2)
+
+	if sd.items[0].Indent != 2 {
+		t.Errorf("Expected indent 2, got %d", sd.items[0].Indent)
+	}
+}
+
+func TestStructuredDataColoredRow(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddColoredRow("Key", "Value", "\033[32m")
+
+	if sd.items[0].Color != "\033[32m" {
+		t.Errorf("Expected color '\\033[32m', got %q", sd.items[0].Color)
+	}
+}
+
+func TestStructuredDataView(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddRow("Key", "Value")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+
+	if !strings.Contains(view, "Test") {
+		t.Error("View should contain title")
+	}
+
+	if !strings.Contains(view, "Key") {
+		t.Error("View should contain key")
+	}
+
+	if !strings.Contains(view, "Value") {
+		t.Error("View should contain value")
+	}
+
+	if !strings.Contains(view, "⎿") {
+		t.Error("View should contain tree connector")
+	}
+}
+
+func TestStructuredDataViewEmpty(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := sd.View()
+	if !strings.Contains(view, "(no data)") {
+		t.Error("Empty view should show '(no data)'")
+	}
+}
+
+func TestStructuredDataViewWithoutWidth(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddRow("Key", "Value")
+
+	view := sd.View()
+	if view != "" {
+		t.Error("View should be empty when width is not set")
+	}
+}
+
+func TestStructuredDataCollapsed(t *testing.T) {
+	sd := NewStructuredData("Test", WithStructuredDataMaxLines(2))
+	sd.AddRow("Item 1", "Value 1")
+	sd.AddRow("Item 2", "Value 2")
+	sd.AddRow("Item 3", "Value 3")
+	sd.AddRow("Item 4", "Value 4")
+
+	sd.SetExpanded(false)
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := sd.View()
+
+	if !strings.Contains(view, "Item 1") {
+		t.Error("Collapsed view should contain Item 1")
+	}
+
+	if !strings.Contains(view, "Item 2") {
+		t.Error("Collapsed view should contain Item 2")
+	}
+
+	if !strings.Contains(view, "+2 items") {
+		t.Error("Collapsed view should show '+2 items' indicator")
+	}
+
+	if !strings.Contains(view, "ctrl+o to expand") {
+		t.Error("Collapsed view should show expand hint")
+	}
+}
+
+func TestStructuredDataExpanded(t *testing.T) {
+	sd := NewStructuredData("Test", WithStructuredDataMaxLines(2))
+	sd.AddRow("Item 1", "Value 1")
+	sd.AddRow("Item 2", "Value 2")
+	sd.AddRow("Item 3", "Value 3")
+
+	sd.SetExpanded(true)
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := sd.View()
+
+	if !strings.Contains(view, "Item 3") {
+		t.Error("Expanded view should contain all items")
+	}
+
+	if strings.Contains(view, "+1 items") {
+		t.Error("Expanded view should not show items indicator")
+	}
+}
+
+func TestStructuredDataToggleExpanded(t *testing.T) {
+	sd := NewStructuredData("Test")
+
+	if !sd.expanded {
+		t.Error("Should start expanded")
+	}
+
+	sd.ToggleExpanded()
+	if sd.expanded {
+		t.Error("Should be collapsed after toggle")
+	}
+
+	sd.ToggleExpanded()
+	if !sd.expanded {
+		t.Error("Should be expanded after second toggle")
+	}
+}
+
+func TestStructuredDataFocusManagement(t *testing.T) {
+	sd := NewStructuredData("Test")
+
+	if sd.Focused() {
+		t.Error("Should not be focused initially")
+	}
+
+	sd.Focus()
+	if !sd.Focused() {
+		t.Error("Should be focused after Focus()")
+	}
+
+	sd.Blur()
+	if sd.Focused() {
+		t.Error("Should not be focused after Blur()")
+	}
+}
+
+func TestStructuredDataKeyboardToggle(t *testing.T) {
+	sd := NewStructuredData("Test", WithStructuredDataMaxLines(2))
+	sd.Focus()
+	sd.AddRow("Item 1", "Value 1")
+	sd.AddRow("Item 2", "Value 2")
+	sd.AddRow("Item 3", "Value 3")
+
+	if !sd.expanded {
+		t.Error("Should start expanded")
+	}
+
+	// Press Ctrl+O to collapse
+	sd.Update(tea.KeyMsg{Type: tea.KeyCtrlO})
+	if sd.expanded {
+		t.Error("Ctrl+O should collapse")
+	}
+
+	// Press Enter to expand
+	sd.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !sd.expanded {
+		t.Error("Enter should expand")
+	}
+}
+
+func TestStructuredDataClear(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddRow("Key1", "Value1")
+	sd.AddRow("Key2", "Value2")
+
+	if len(sd.items) != 2 {
+		t.Error("Should have 2 items before clear")
+	}
+
+	sd.Clear()
+
+	if len(sd.items) != 0 {
+		t.Errorf("Should have 0 items after clear, got %d", len(sd.items))
+	}
+}
+
+func TestStructuredDataSetItems(t *testing.T) {
+	sd := NewStructuredData("Test")
+
+	items := []DataItem{
+		{Type: ItemKeyValue, Key: "Key1", Value: "Value1"},
+		{Type: ItemKeyValue, Key: "Key2", Value: "Value2"},
+	}
+
+	sd.SetItems(items)
+
+	if len(sd.items) != 2 {
+		t.Errorf("Expected 2 items, got %d", len(sd.items))
+	}
+}
+
+func TestStructuredDataFromMap(t *testing.T) {
+	data := map[string]string{
+		"Key1": "Value1",
+		"Key2": "Value2",
+	}
+
+	sd := FromMap("Test", data)
+
+	if len(sd.items) != 2 {
+		t.Errorf("Expected 2 items, got %d", len(sd.items))
+	}
+
+	if sd.title != "Test" {
+		t.Errorf("Expected title 'Test', got %q", sd.title)
+	}
+}
+
+func TestStructuredDataFromKeyValuePairs(t *testing.T) {
+	sd := FromKeyValuePairs("Test", "Key1", "Value1", "Key2", "Value2")
+
+	if len(sd.items) != 2 {
+		t.Errorf("Expected 2 items, got %d", len(sd.items))
+	}
+
+	if sd.items[0].Key != "Key1" {
+		t.Errorf("Expected key 'Key1', got %q", sd.items[0].Key)
+	}
+
+	if sd.items[1].Value != "Value2" {
+		t.Errorf("Expected value 'Value2', got %q", sd.items[1].Value)
+	}
+}
+
+func TestStructuredDataKeyWidthCalculation(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.AddRow("Short", "Value")
+	sd.AddRow("Very Long Key Name", "Value")
+
+	width := sd.calculateKeyWidth()
+
+	if width < len("Very Long Key Name") {
+		t.Errorf("Key width should accommodate longest key, got %d", width)
+	}
+
+	if width > 40 {
+		t.Errorf("Key width should be capped at 40, got %d", width)
+	}
+}
+
+func TestStructuredDataCustomKeyWidth(t *testing.T) {
+	sd := NewStructuredData("Test", WithKeyWidth(30))
+
+	if sd.keyWidth != 30 {
+		t.Errorf("Expected key width 30, got %d", sd.keyWidth)
+	}
+}
+
+func TestStructuredDataCustomIcon(t *testing.T) {
+	sd := NewStructuredData("Test", WithStructuredDataIcon("📊"))
+
+	if sd.icon != "📊" {
+		t.Errorf("Expected icon '📊', got %q", sd.icon)
+	}
+}
+
+func TestStructuredDataWindowSizeUpdate(t *testing.T) {
+	sd := NewStructuredData("Test")
+
+	if sd.width != 0 {
+		t.Error("Initial width should be 0")
+	}
+
+	sd.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+
+	if sd.width != 100 {
+		t.Errorf("Expected width 100, got %d", sd.width)
+	}
+}
+
+func TestStructuredDataMultipleSections(t *testing.T) {
+	sd := NewStructuredData("Test").
+		AddHeader("Section 1").
+		AddRow("Key1", "Value1").
+		AddSeparator().
+		AddHeader("Section 2").
+		AddRow("Key2", "Value2")
+
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := sd.View()
+
+	if !strings.Contains(view, "Section 1") {
+		t.Error("View should contain Section 1")
+	}
+
+	if !strings.Contains(view, "Section 2") {
+		t.Error("View should contain Section 2")
+	}
+}
+
+func TestStructuredDataNestedIndentation(t *testing.T) {
+	sd := NewStructuredData("Test").
+		AddRow("Level 0", "Value").
+		AddIndentedRow("Level 1", "Value", 1).
+		AddIndentedRow("Level 2", "Value", 2).
+		AddIndentedRow("Level 3", "Value", 3)
+
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := sd.View()
+
+	if view == "" {
+		t.Error("View should not be empty with nested indentation")
+	}
+}
+
+func TestStructuredDataUnicodeContent(t *testing.T) {
+	sd := NewStructuredData("Test").
+		AddRow("日本語", "テスト").
+		AddRow("Emoji", "🎉 ✨ 🚀")
+
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := sd.View()
+
+	if !strings.Contains(view, "日本語") {
+		t.Error("View should contain unicode content")
+	}
+
+	if !strings.Contains(view, "🎉") {
+		t.Error("View should contain emoji")
+	}
+}
+
+func TestStructuredDataInit(t *testing.T) {
+	sd := NewStructuredData("Test")
+	cmd := sd.Init()
+
+	if cmd != nil {
+		t.Error("Init should return nil")
+	}
+}

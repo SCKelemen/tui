@@ -543,6 +543,97 @@ header := tui.NewHeader(
 
 ---
 
+### 10. StructuredData
+
+Displays formatted key-value data with tree connectors, similar to ToolBlock but optimized for structured information.
+
+**Features:**
+- Builder pattern API for ergonomic data construction
+- Key-value pairs with automatic alignment
+- Section headers
+- Nested/indented items
+- Colored rows
+- Collapsible when using `WithStructuredDataMaxLines()`
+- Ctrl+O or Enter to expand/collapse
+- Helper functions: `FromMap()`, `FromKeyValuePairs()`
+
+**API:**
+```go
+// Create with builder pattern
+sd := tui.NewStructuredData("Session Summary").
+    AddRow("Total cost", "$122.25").
+    AddRow("Total duration", "6h 10m 48s").
+    AddSeparator().
+    AddHeader("Usage by model").
+    AddIndentedRow("claude-haiku", "797.2k input", 1).
+    AddIndentedRow("claude-sonnet", "970.4k output", 1)
+
+// Or use helper functions
+sd := tui.FromKeyValuePairs("Config",
+    "Host", "localhost",
+    "Port", "8080",
+    "SSL", "enabled",
+)
+```
+
+**Item Types:**
+- `AddRow(key, value)` - Key-value pair
+- `AddColoredRow(key, value, color)` - Colored key-value pair
+- `AddIndentedRow(key, value, indent)` - Indented key-value pair
+- `AddHeader(text)` - Section header (bold)
+- `AddSeparator()` - Blank line
+- `AddValue(text)` - Value-only line (no key)
+- `AddIndentedValue(text, indent)` - Indented value-only line
+
+**Options:**
+- `WithStructuredDataMaxLines(n)` - Collapse to N lines
+- `WithKeyWidth(width)` - Fixed width for key column (auto if 0)
+- `WithStructuredDataIcon(icon)` - Custom icon
+
+**Output:**
+```
+⏺ Session Summary
+  ⎿  Total cost:           $122.25
+     Total duration (API): 6h 10m 48s
+     Total duration (wall): 1d 20h 37m
+     Total code changes:   26773 lines added, 2436 lines removed
+
+     Usage by model
+       claude-haiku:       797.2k input, 65.9k output
+       claude-sonnet:      970.4k output, 189.5m cache read
+```
+
+**Use Cases:**
+- Cost/billing summaries
+- Configuration display
+- API response formatting
+- Test results summary
+- System stats
+- Any tabular key-value data
+
+**Advanced:**
+```go
+// Multiple sections with indentation
+sd := tui.NewStructuredData("Config").
+    AddHeader("Server").
+    AddIndentedRow("Host", "localhost", 1).
+    AddIndentedRow("Port", "8080", 1).
+    AddSeparator().
+    AddHeader("Database").
+    AddIndentedRow("Driver", "postgresql", 1).
+    AddIndentedRow("Pool Size", "20", 1).
+    AddSeparator().
+    AddHeader("Features").
+    AddIndentedRow("Auth", "enabled", 1).
+    AddIndentedRow("Caching", "redis", 1)
+
+// Color coding
+sd.AddColoredRow("Passed", "170", "\033[32m")    // Green
+sd.AddColoredRow("Failed", "0", "\033[2m")       // Dim
+```
+
+---
+
 ## Component Interface
 
 All components implement:

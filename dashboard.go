@@ -27,8 +27,11 @@ type Dashboard struct {
 	cards []*StatCard
 
 	// Navigation
-	focusedCardIndex int // Index of currently focused card (-1 = none)
+	focusedCardIndex  int // Index of currently focused card (-1 = none)
 	selectedCardIndex int // Index of selected card for drill-down (-1 = none)
+
+	// Detail modal for drill-down
+	detailModal *DetailModal
 
 	// Title
 	title string
@@ -85,6 +88,7 @@ func NewDashboard(opts ...DashboardOption) *Dashboard {
 		cards:             []*StatCard{},
 		focusedCardIndex:  -1, // No card focused initially
 		selectedCardIndex: -1, // No card selected initially
+		detailModal:       NewDetailModal(),
 	}
 
 	for _, opt := range opts {
@@ -115,9 +119,23 @@ func (d *Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 		// Update card dimensions based on grid layout
 		d.updateCardDimensions()
 
+		// Forward to detail modal
+		d.detailModal.Update(msg)
+
 		// Don't forward window size to cards - we already calculated their dimensions
 
 	case tea.KeyMsg:
+		// If modal is open, forward keys to it
+		if d.detailModal.IsVisible() {
+			d.detailModal.Update(msg)
+			// Check if modal was closed
+			if !d.detailModal.IsVisible() {
+				// Modal closed, refocus dashboard
+				d.focused = true
+			}
+			return d, nil
+		}
+
 		// Only handle keys if dashboard is focused
 		if !d.focused {
 			return d, nil
@@ -133,7 +151,7 @@ func (d *Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 		case "right", "l":
 			d.moveFocusRight()
 		case "enter":
-			d.toggleSelection()
+			d.openDetailModal()
 		case "esc":
 			d.clearSelection()
 		}
@@ -148,8 +166,41 @@ func (d *Dashboard) View() string {
 		return ""
 	}
 
-	// Use layout-based rendering for grid
-	return d.renderWithLayout()
+	// Render dashboard
+	dashboardView := d.renderWithLayout()
+
+	// If modal is visible, overlay it on top
+	if d.detailModal.IsVisible() {
+		modalView := d.detailModal.View()
+		return d.overlayModal(dashboardView, modalView)
+	}
+
+	return dashboardView
+}
+
+// overlayModal overlays the modal view on top of the dashboard view
+func (d *Dashboard) overlayModal(base, overlay string) string {
+	baseLines := strings.Split(base, "\n")
+	overlayLines := strings.Split(overlay, "\n")
+
+	// Merge lines - overlay takes precedence where it has content
+	maxLines := len(baseLines)
+	if len(overlayLines) > maxLines {
+		maxLines = len(overlayLines)
+	}
+
+	result := make([]string, maxLines)
+	for i := 0; i < maxLines; i++ {
+		if i < len(overlayLines) && overlayLines[i] != "" {
+			result[i] = overlayLines[i]
+		} else if i < len(baseLines) {
+			result[i] = baseLines[i]
+		} else {
+			result[i] = ""
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
 
 // Focus is called when this component receives focus
@@ -246,6 +297,25 @@ func (d *Dashboard) clearSelection() {
 		d.cards[d.selectedCardIndex].Deselect()
 		d.selectedCardIndex = -1
 	}
+}
+
+// openDetailModal opens the detail modal for the currently focused card
+func (d *Dashboard) openDetailModal() {
+	if d.focusedCardIndex < 0 || d.focusedCardIndex >= len(d.cards) {
+		return
+	}
+
+	// Get focused card
+	card := d.cards[d.focusedCardIndex]
+
+	// Set modal content from card
+	d.detailModal.SetContent(card)
+
+	// Show modal
+	d.detailModal.Show()
+
+	// Dashboard loses focus while modal is open
+	d.focused = false
 }
 
 // setFocusedCard sets the focused card by index

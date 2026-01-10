@@ -174,8 +174,9 @@ func initialModel() model {
 		tui.WithModalType(tui.ModalAlert),
 	)
 
-	// Show modal initially
+	// Show and focus modal initially
 	modal.Show()
+	modal.Focus()
 
 	return model{
 		header:          header,
@@ -214,41 +215,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Modal gets first priority
+		// Always allow quitting with Ctrl+C or q
+		if msg.String() == "ctrl+c" || msg.String() == "q" {
+			return m, tea.Quit
+		}
+
+		// Modal gets priority when visible
 		if m.modal.IsVisible() {
-			switch msg.String() {
-			case "m", "esc":
+			// Check for 'm' to toggle modal
+			if msg.String() == "m" {
 				m.modal.Hide()
+				m.modal.Blur()
 				return m, nil
-			case "q", "ctrl+c":
-				return m, tea.Quit
 			}
-			// Let modal handle other keys
+			// Let modal handle all other keys (including Esc, Enter)
 			comp, cmd := m.modal.Update(msg)
 			m.modal = comp.(*tui.Modal)
 			return m, cmd
 		}
 
-		// Command palette
+		// Command palette gets priority when visible
 		if m.commandPalette.IsVisible() {
+			// Let command palette handle all keys (including Esc, Enter)
 			comp, cmd := m.commandPalette.Update(msg)
 			m.commandPalette = comp.(*tui.CommandPalette)
+
+			// If palette was hidden, blur it
+			if !m.commandPalette.IsVisible() {
+				m.commandPalette.Blur()
+			}
 			return m, cmd
 		}
 
 		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-
 		case "m":
-			if m.modal.IsVisible() {
-				m.modal.Hide()
-			} else {
-				m.modal.Show()
-			}
+			m.modal.Show()
+			m.modal.Focus()
 
 		case "p":
 			m.commandPalette.Show()
+			m.commandPalette.Focus()
 
 		case "r":
 			if !m.activityRunning {
@@ -323,6 +329,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg {
 		case "show-modal":
 			m.modal.Show()
+			m.modal.Focus()
 		case "start-activity":
 			if !m.activityRunning {
 				m.activityBar.Start("Running from command palette...")

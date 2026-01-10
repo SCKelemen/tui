@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/SCKelemen/tui"
 )
@@ -25,6 +27,10 @@ type model struct {
 	commandPalette     *tui.CommandPalette
 	fileExplorer       *tui.FileExplorer
 	modal              *tui.Modal
+
+	// Viewport for scrolling
+	viewport viewport.Model
+	ready    bool
 
 	// State
 	width           int
@@ -247,6 +253,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+		// Handle viewport scrolling when no overlay is visible
+		switch msg.Type {
+		case tea.KeyUp, tea.KeyDown, tea.KeyPgUp, tea.KeyPgDown:
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
+		}
+
 		switch msg.String() {
 		case "m":
 			m.modal.Show()
@@ -295,6 +309,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		if !m.ready {
+			// Initialize viewport on first window size message
+			m.viewport = viewport.New(msg.Width, msg.Height)
+			m.viewport.YPosition = 0
+			m.ready = true
+		} else {
+			// Update viewport dimensions
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height
+		}
+
 	case tickMsg:
 		m.step++
 
@@ -337,6 +362,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "toggle-section":
 			m.currentSection = (m.currentSection + 1) % 5
+		}
+
+	case tea.MouseMsg:
+		// Handle mouse wheel scrolling (only when no overlay visible)
+		if !m.modal.IsVisible() && !m.commandPalette.IsVisible() {
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		}
 	}
 
@@ -393,65 +426,75 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	if m.width == 0 {
+	if !m.ready {
 		return "Loading..."
 	}
 
-	// Modal overlay
+	// Modal overlay (render on top of everything)
 	if m.modal.IsVisible() {
 		return m.modal.View()
 	}
 
-	// Command palette overlay
+	// Command palette overlay (render on top of everything)
 	if m.commandPalette.IsVisible() {
 		return m.commandPalette.View()
 	}
 
-	s := ""
+	// Build the main content
+	var content strings.Builder
 
 	// Header (always visible)
-	s += m.header.View() + "\n\n"
+	content.WriteString(m.header.View() + "\n\n")
 
 	// Activity bar (section 0 and 1)
 	if m.currentSection == 0 || m.currentSection == 1 {
-		s += "=== Status Indicators & Activities ===\n\n"
-		s += m.activityBar.View() + "\n"
-		s += m.statusBar.View() + "\n\n"
+		content.WriteString("=== Status Indicators & Activities ===\n\n")
+		content.WriteString(m.activityBar.View() + "\n")
+		content.WriteString(m.statusBar.View() + "\n\n")
 	}
 
 	// Structured data (section 0 and 2)
 	if m.currentSection == 0 || m.currentSection == 2 {
-		s += "=== Structured Data (Multiple Spinners & Icon Sets) ===\n\n"
-		s += m.structuredData1.View() + "\n"
-		s += m.structuredData2.View() + "\n"
-		s += m.structuredData3.View() + "\n"
+		content.WriteString("=== Structured Data (Multiple Spinners & Icon Sets) ===\n\n")
+		content.WriteString(m.structuredData1.View() + "\n")
+		content.WriteString(m.structuredData2.View() + "\n")
+		content.WriteString(m.structuredData3.View() + "\n")
 	}
 
 	// Tool blocks (section 0 and 3)
 	if m.currentSection == 0 || m.currentSection == 3 {
-		s += "=== Tool Blocks (Command Output) ===\n\n"
-		s += m.toolBlock1.View() + "\n"
-		s += m.toolBlock2.View() + "\n"
+		content.WriteString("=== Tool Blocks (Command Output) ===\n\n")
+		content.WriteString(m.toolBlock1.View() + "\n")
+		content.WriteString(m.toolBlock2.View() + "\n")
 	}
 
 	// Input components (section 0 and 4)
 	if m.currentSection == 0 || m.currentSection == 4 {
-		s += "=== Input Components ===\n\n"
-		s += "Text Input:\n"
-		s += m.textInput.View() + "\n\n"
-		s += "File Explorer (↑↓ to navigate, Enter to select):\n"
-		s += m.fileExplorer.View() + "\n"
+		content.WriteString("=== Input Components ===\n\n")
+		content.WriteString("Text Input:\n")
+		content.WriteString(m.textInput.View() + "\n\n")
+		content.WriteString("File Explorer (use j/k to navigate, Enter to select):\n")
+		content.WriteString(m.fileExplorer.View() + "\n")
 	}
 
-	s += "\n"
-	s += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-	s += "Keyboard shortcuts: 1-5 (sections) | m (modal) | p (palette) | r (run) | s (stop) | q (quit)\n"
+	content.WriteString("\n")
+	content.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	content.WriteString("Keys: 1-5 (sections) | m (modal) | p (palette) | r (run) | s (stop) | q (quit)\n")
+	content.WriteString("Scroll: ↑↓ (line) | PgUp/PgDn (page)\n")
 
-	return s
+	// Set viewport content
+	m.viewport.SetContent(content.String())
+
+	// Return viewport view with scroll indicator
+	return m.viewport.View()
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(
+		initialModel(),
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(), // Enable mouse support for scrolling
+	)
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)

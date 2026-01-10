@@ -508,3 +508,99 @@ func TestStatCardEmptyValues(t *testing.T) {
 		t.Error("Should have borders")
 	}
 }
+
+// TestStatCardSelectionState tests selection state management
+func TestStatCardSelectionState(t *testing.T) {
+	card := NewStatCard()
+
+	if card.IsSelected() {
+		t.Error("Card should not be selected initially")
+	}
+
+	card.Select()
+	if !card.IsSelected() {
+		t.Error("Card should be selected after Select()")
+	}
+
+	card.Deselect()
+	if card.IsSelected() {
+		t.Error("Card should not be selected after Deselect()")
+	}
+}
+
+// TestStatCardBorderStyleNormal tests normal border style
+func TestStatCardBorderStyleNormal(t *testing.T) {
+	card := NewStatCard()
+	card.width = 30
+	card.height = 8
+
+	view := card.View()
+
+	// Normal border should use thin single-line characters
+	if !strings.Contains(view, "┌") || !strings.Contains(view, "┐") {
+		t.Error("Normal card should have thin top border (┌┐)")
+	}
+	if !strings.Contains(view, "└") || !strings.Contains(view, "┘") {
+		t.Error("Normal card should have thin bottom border (└┘)")
+	}
+}
+
+// TestStatCardBorderStyleFocused tests focused border style
+func TestStatCardBorderStyleFocused(t *testing.T) {
+	card := NewStatCard()
+	card.width = 30
+	card.height = 8
+	card.Focus()
+
+	view := card.View()
+
+	// Focused border should use double-line characters
+	if !strings.Contains(view, "╔") || !strings.Contains(view, "╗") {
+		t.Error("Focused card should have double-line top border (╔╗)")
+	}
+	if !strings.Contains(view, "╚") || !strings.Contains(view, "╝") {
+		t.Error("Focused card should have double-line bottom border (╚╝)")
+	}
+	if !strings.Contains(view, "║") {
+		t.Error("Focused card should have double-line vertical borders (║)")
+	}
+}
+
+// TestStatCardBorderStyleSelected tests selected border style
+func TestStatCardBorderStyleSelected(t *testing.T) {
+	card := NewStatCard()
+	card.width = 30
+	card.height = 8
+	card.Select()
+
+	view := card.View()
+
+	// Selected border should use thick line characters
+	if !strings.Contains(view, "┏") || !strings.Contains(view, "┓") {
+		t.Error("Selected card should have thick top border (┏┓)")
+	}
+	if !strings.Contains(view, "┗") || !strings.Contains(view, "┛") {
+		t.Error("Selected card should have thick bottom border (┗┛)")
+	}
+	if !strings.Contains(view, "┃") {
+		t.Error("Selected card should have thick vertical borders (┃)")
+	}
+}
+
+// TestStatCardBorderStylePriority tests focus takes priority over selection
+func TestStatCardBorderStylePriority(t *testing.T) {
+	card := NewStatCard()
+	card.width = 30
+	card.height = 8
+
+	// Both focused and selected - focus should win
+	card.Focus()
+	card.Select()
+
+	view := card.View()
+
+	// Should show focused style (double-line)
+	if !strings.Contains(view, "╔") {
+		t.Error("Focused state should take priority over selected state")
+	}
+}

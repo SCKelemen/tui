@@ -403,3 +403,321 @@ func TestDashboardManyCards(t *testing.T) {
 		}
 	}
 }
+
+// TestDashboardInitialCardFocus tests first card is focused on creation
+func TestDashboardInitialCardFocus(t *testing.T) {
+	card1 := NewStatCard(WithTitle("Card 1"))
+	card2 := NewStatCard(WithTitle("Card 2"))
+	card3 := NewStatCard(WithTitle("Card 3"))
+
+	dashboard := NewDashboard(
+		WithCards(card1, card2, card3),
+	)
+
+	// First card should be focused
+	if dashboard.focusedCardIndex != 0 {
+		t.Errorf("Expected focusedCardIndex=0, got %d", dashboard.focusedCardIndex)
+	}
+
+	if !card1.Focused() {
+		t.Error("First card should be focused")
+	}
+}
+
+// TestDashboardNavigationRight tests navigating right
+func TestDashboardNavigationRight(t *testing.T) {
+	card1 := NewStatCard(WithTitle("Card 1"))
+	card2 := NewStatCard(WithTitle("Card 2"))
+	card3 := NewStatCard(WithTitle("Card 3"))
+
+	dashboard := NewDashboard(
+		WithGridColumns(3),
+		WithCards(card1, card2, card3),
+	)
+	dashboard.Focus()
+
+	// Navigate right from card 0 to card 1
+	msg := tea.KeyMsg{Type: tea.KeyRight}
+	dashboard.Update(msg)
+
+	if dashboard.focusedCardIndex != 1 {
+		t.Errorf("Expected focusedCardIndex=1, got %d", dashboard.focusedCardIndex)
+	}
+
+	if !card2.Focused() {
+		t.Error("Card 2 should be focused after right navigation")
+	}
+
+	if card1.Focused() {
+		t.Error("Card 1 should be blurred")
+	}
+}
+
+// TestDashboardNavigationLeft tests navigating left
+func TestDashboardNavigationLeft(t *testing.T) {
+	card1 := NewStatCard(WithTitle("Card 1"))
+	card2 := NewStatCard(WithTitle("Card 2"))
+	card3 := NewStatCard(WithTitle("Card 3"))
+
+	dashboard := NewDashboard(
+		WithGridColumns(3),
+		WithCards(card1, card2, card3),
+	)
+	dashboard.Focus()
+
+	// Navigate to card 1 first
+	dashboard.setFocusedCard(1)
+
+	// Navigate left from card 1 to card 0
+	msg := tea.KeyMsg{Type: tea.KeyLeft}
+	dashboard.Update(msg)
+
+	if dashboard.focusedCardIndex != 0 {
+		t.Errorf("Expected focusedCardIndex=0, got %d", dashboard.focusedCardIndex)
+	}
+
+	if !card1.Focused() {
+		t.Error("Card 1 should be focused after left navigation")
+	}
+}
+
+// TestDashboardNavigationDown tests navigating down
+func TestDashboardNavigationDown(t *testing.T) {
+	// Create 6 cards in 3 columns (2 rows)
+	cards := []*StatCard{
+		NewStatCard(WithTitle("Card 1")),
+		NewStatCard(WithTitle("Card 2")),
+		NewStatCard(WithTitle("Card 3")),
+		NewStatCard(WithTitle("Card 4")),
+		NewStatCard(WithTitle("Card 5")),
+		NewStatCard(WithTitle("Card 6")),
+	}
+
+	dashboard := NewDashboard(
+		WithGridColumns(3),
+		WithCards(cards...),
+	)
+	dashboard.Focus()
+
+	// Navigate down from card 0 (row 0, col 0) to card 3 (row 1, col 0)
+	msg := tea.KeyMsg{Type: tea.KeyDown}
+	dashboard.Update(msg)
+
+	if dashboard.focusedCardIndex != 3 {
+		t.Errorf("Expected focusedCardIndex=3, got %d", dashboard.focusedCardIndex)
+	}
+
+	if !cards[3].Focused() {
+		t.Error("Card 4 should be focused after down navigation")
+	}
+}
+
+// TestDashboardNavigationUp tests navigating up
+func TestDashboardNavigationUp(t *testing.T) {
+	// Create 6 cards in 3 columns (2 rows)
+	cards := []*StatCard{
+		NewStatCard(WithTitle("Card 1")),
+		NewStatCard(WithTitle("Card 2")),
+		NewStatCard(WithTitle("Card 3")),
+		NewStatCard(WithTitle("Card 4")),
+		NewStatCard(WithTitle("Card 5")),
+		NewStatCard(WithTitle("Card 6")),
+	}
+
+	dashboard := NewDashboard(
+		WithGridColumns(3),
+		WithCards(cards...),
+	)
+	dashboard.Focus()
+
+	// Start at card 3 (row 1, col 0)
+	dashboard.setFocusedCard(3)
+
+	// Navigate up to card 0 (row 0, col 0)
+	msg := tea.KeyMsg{Type: tea.KeyUp}
+	dashboard.Update(msg)
+
+	if dashboard.focusedCardIndex != 0 {
+		t.Errorf("Expected focusedCardIndex=0, got %d", dashboard.focusedCardIndex)
+	}
+
+	if !cards[0].Focused() {
+		t.Error("Card 1 should be focused after up navigation")
+	}
+}
+
+// TestDashboardNavigationVimKeys tests vim-style navigation (hjkl)
+func TestDashboardNavigationVimKeys(t *testing.T) {
+	cards := []*StatCard{
+		NewStatCard(WithTitle("Card 1")),
+		NewStatCard(WithTitle("Card 2")),
+		NewStatCard(WithTitle("Card 3")),
+	}
+
+	dashboard := NewDashboard(
+		WithGridColumns(3),
+		WithCards(cards...),
+	)
+	dashboard.Focus()
+
+	// Test 'l' (right)
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if dashboard.focusedCardIndex != 1 {
+		t.Error("'l' should navigate right")
+	}
+
+	// Test 'h' (left)
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if dashboard.focusedCardIndex != 0 {
+		t.Error("'h' should navigate left")
+	}
+}
+
+// TestDashboardNavigationBoundaries tests navigation at boundaries
+func TestDashboardNavigationBoundaries(t *testing.T) {
+	cards := []*StatCard{
+		NewStatCard(WithTitle("Card 1")),
+		NewStatCard(WithTitle("Card 2")),
+		NewStatCard(WithTitle("Card 3")),
+	}
+
+	dashboard := NewDashboard(
+		WithGridColumns(3),
+		WithCards(cards...),
+	)
+	dashboard.Focus()
+
+	// Try to navigate left from first card - should stay at 0
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if dashboard.focusedCardIndex != 0 {
+		t.Error("Should stay at first card when navigating left from boundary")
+	}
+
+	// Navigate to last card
+	dashboard.setFocusedCard(2)
+
+	// Try to navigate right from last card - should stay at 2
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if dashboard.focusedCardIndex != 2 {
+		t.Error("Should stay at last card when navigating right from boundary")
+	}
+
+	// Try to navigate up from first row - should stay at 2
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if dashboard.focusedCardIndex != 2 {
+		t.Error("Should stay in same position when navigating up from first row")
+	}
+
+	// Try to navigate down from last row - should stay at 2
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if dashboard.focusedCardIndex != 2 {
+		t.Error("Should stay in same position when navigating down from last row")
+	}
+}
+
+// TestDashboardNavigationWithoutFocus tests navigation requires focus
+func TestDashboardNavigationWithoutFocus(t *testing.T) {
+	card1 := NewStatCard(WithTitle("Card 1"))
+	card2 := NewStatCard(WithTitle("Card 2"))
+
+	dashboard := NewDashboard(
+		WithCards(card1, card2),
+	)
+
+	// Don't call dashboard.Focus()
+	dashboard.Blur()
+
+	initialIndex := dashboard.focusedCardIndex
+
+	// Try to navigate - should not work
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyRight})
+
+	if dashboard.focusedCardIndex != initialIndex {
+		t.Error("Navigation should not work without focus")
+	}
+}
+
+// TestDashboardGetColumnCount tests column count calculation
+func TestDashboardGetColumnCount(t *testing.T) {
+	cards := []*StatCard{
+		NewStatCard(WithTitle("Card 1")),
+		NewStatCard(WithTitle("Card 2")),
+		NewStatCard(WithTitle("Card 3")),
+		NewStatCard(WithTitle("Card 4")),
+	}
+
+	// Fixed columns
+	dashboard := NewDashboard(
+		WithGridColumns(2),
+		WithCards(cards...),
+	)
+
+	cols := dashboard.getColumnCount()
+	if cols != 2 {
+		t.Errorf("Expected 2 columns, got %d", cols)
+	}
+
+	// Responsive layout
+	dashboardResp := NewDashboard(
+		WithResponsiveLayout(30),
+		WithGap(2),
+		WithCards(cards...),
+	)
+	dashboardResp.width = 100
+
+	cols = dashboardResp.getColumnCount()
+	// (100 / (30 + 2)) = 3 columns
+	if cols != 3 {
+		t.Errorf("Expected 3 columns for width=100, got %d", cols)
+	}
+}
+
+// TestDashboardClearSelection tests clearing card selection
+func TestDashboardClearSelection(t *testing.T) {
+	card1 := NewStatCard(WithTitle("Card 1"))
+	card2 := NewStatCard(WithTitle("Card 2"))
+
+	dashboard := NewDashboard(
+		WithCards(card1, card2),
+	)
+
+	// Select a card manually
+	dashboard.selectedCardIndex = 0
+	card1.Select()
+
+	dashboard.clearSelection()
+
+	if dashboard.selectedCardIndex != -1 {
+		t.Errorf("Expected selectedCardIndex=-1, got %d", dashboard.selectedCardIndex)
+	}
+
+	if card1.IsSelected() {
+		t.Error("Card should not be selected after clearSelection()")
+	}
+}
+
+// TestDashboardEscapeClearsSelection tests ESC key clears selection
+func TestDashboardEscapeClearsSelection(t *testing.T) {
+	card1 := NewStatCard(WithTitle("Card 1"))
+	card2 := NewStatCard(WithTitle("Card 2"))
+
+	dashboard := NewDashboard(
+		WithCards(card1, card2),
+	)
+	dashboard.Focus()
+
+	// Select a card
+	dashboard.selectedCardIndex = 0
+	card1.Select()
+
+	// Press ESC
+	dashboard.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	if dashboard.selectedCardIndex != -1 {
+		t.Error("ESC should clear selection")
+	}
+
+	if card1.IsSelected() {
+		t.Error("Card should not be selected after ESC")
+	}
+}

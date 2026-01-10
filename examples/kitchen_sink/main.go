@@ -30,7 +30,6 @@ type model struct {
 	width           int
 	height          int
 	step            int
-	showModal       bool
 	currentSection  int // 0=all, 1=status, 2=data, 3=tools, 4=input
 	activityRunning bool
 }
@@ -175,6 +174,9 @@ func initialModel() model {
 		tui.WithModalType(tui.ModalAlert),
 	)
 
+	// Show modal initially
+	modal.Show()
+
 	return model{
 		header:          header,
 		activityBar:     activityBar,
@@ -189,7 +191,6 @@ func initialModel() model {
 		fileExplorer:    fileExplorer,
 		modal:           modal,
 		currentSection:  0, // Show all
-		showModal:       true,
 	}
 }
 
@@ -214,15 +215,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Modal gets first priority
-		if m.showModal {
+		if m.modal.IsVisible() {
 			switch msg.String() {
 			case "m", "esc":
-				m.showModal = false
+				m.modal.Hide()
 				return m, nil
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
-			return m, nil
+			// Let modal handle other keys
+			comp, cmd := m.modal.Update(msg)
+			m.modal = comp.(*tui.Modal)
+			return m, cmd
 		}
 
 		// Command palette
@@ -237,7 +241,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "m":
-			m.showModal = !m.showModal
+			if m.modal.IsVisible() {
+				m.modal.Hide()
+			} else {
+				m.modal.Show()
+			}
 
 		case "p":
 			m.commandPalette.Show()
@@ -314,7 +322,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case string:
 		switch msg {
 		case "show-modal":
-			m.showModal = true
+			m.modal.Show()
 		case "start-activity":
 			if !m.activityRunning {
 				m.activityBar.Start("Running from command palette...")
@@ -370,6 +378,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.fileExplorer = comp.(*tui.FileExplorer)
 	cmds = append(cmds, cmd)
 
+	comp, cmd = m.modal.Update(msg)
+	m.modal = comp.(*tui.Modal)
+	cmds = append(cmds, cmd)
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -379,7 +391,7 @@ func (m model) View() string {
 	}
 
 	// Modal overlay
-	if m.showModal {
+	if m.modal.IsVisible() {
 		return m.modal.View()
 	}
 

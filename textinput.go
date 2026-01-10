@@ -54,9 +54,11 @@ func (t *TextInput) Update(msg tea.Msg) (Component, tea.Cmd) {
 		// Handle Ctrl+Enter to submit (Ctrl+J in terminal)
 		if msg.Type == tea.KeyCtrlJ || (msg.Type == tea.KeyEnter && msg.Alt) {
 			content := strings.TrimSpace(t.textarea.Value())
-			if content != "" && t.onSubmit != nil {
+			if content != "" {
 				t.textarea.Reset()
-				return t, t.onSubmit(content)
+				if t.onSubmit != nil {
+					return t, t.onSubmit(content)
+				}
 			}
 			return t, nil
 		}

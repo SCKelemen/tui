@@ -82,9 +82,9 @@ func (cp *CommandPalette) Update(msg tea.Msg) (Component, tea.Cmd) {
 			return cp, nil
 
 		case tea.KeyEnter:
+			cp.Hide()
 			if len(cp.filtered) > 0 && cp.selected < len(cp.filtered) {
 				selectedCmd := cp.filtered[cp.selected]
-				cp.Hide()
 				if selectedCmd.Action != nil {
 					return cp, selectedCmd.Action()
 				}

@@ -783,3 +783,306 @@ func TestSpinnerFrameCount(t *testing.T) {
 		t.Errorf("SpinnerBlink should have 2 frames, got %d", SpinnerBlink.FrameCount())
 	}
 }
+
+// Edge case tests
+
+func TestSpinnerEmptyFrames(t *testing.T) {
+	emptySpinner := Spinner{Frames: []string{}}
+
+	if emptySpinner.FrameCount() != 0 {
+		t.Error("Empty spinner should have 0 frames")
+	}
+
+	frame := emptySpinner.GetFrame(0)
+	if frame != "" {
+		t.Error("Empty spinner should return empty string")
+	}
+}
+
+func TestSpinnerSingleFrame(t *testing.T) {
+	singleSpinner := Spinner{Frames: []string{"●"}}
+
+	if singleSpinner.FrameCount() != 1 {
+		t.Error("Single frame spinner should have 1 frame")
+	}
+
+	// All indices should return the same frame
+	for i := 0; i < 10; i++ {
+		if singleSpinner.GetFrame(i) != "●" {
+			t.Errorf("Frame %d should be '●'", i)
+		}
+	}
+}
+
+func TestSpinnerLargeFrameIndex(t *testing.T) {
+	spinner := SpinnerThinking
+
+	// Test wraparound with large indices
+	frame100 := spinner.GetFrame(100)
+	frame0 := spinner.GetFrame(100 % spinner.FrameCount())
+
+	if frame100 != frame0 {
+		t.Error("Large frame index should wrap around correctly")
+	}
+
+	// Test very large index
+	frame1000000 := spinner.GetFrame(1000000)
+	expectedFrame := spinner.GetFrame(1000000 % spinner.FrameCount())
+
+	if frame1000000 != expectedFrame {
+		t.Error("Very large frame index should wrap around correctly")
+	}
+}
+
+func TestStructuredDataSwitchSpinnerWhileRunning(t *testing.T) {
+	sd := NewStructuredData("Test", WithSpinner(SpinnerBlink))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.StartRunning()
+
+	// Get initial view with SpinnerBlink
+	view1 := sd.View()
+
+	// Switch to SpinnerThinking mid-animation
+	sd.spinner = SpinnerThinking
+
+	// Advance animation
+	for i := 0; i < 5; i++ {
+		sd.Update(structuredDataTickMsg{})
+	}
+
+	view2 := sd.View()
+
+	// Views should differ (different spinners)
+	if view1 == view2 {
+		t.Error("View should change when spinner is switched")
+	}
+}
+
+func TestStructuredDataSwitchIconSetWhileRunning(t *testing.T) {
+	sd := NewStructuredData("Test", WithIconSet(IconSetDefault))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.MarkSuccess()
+	view1 := sd.View()
+
+	// Switch icon set
+	sd.iconSet = IconSetClaude
+	view2 := sd.View()
+
+	// Views should differ (IconSetClaude uses ✓)
+	if !strings.Contains(view2, "✓") {
+		t.Error("View should show new icon set after switch")
+	}
+
+	if strings.Contains(view1, "✓") && strings.Contains(view2, "✓") {
+		// Only error if both have checkmark and they're the same
+		// (IconSetDefault doesn't have checkmark, so this is fine)
+	}
+}
+
+func TestStructuredDataRapidStatusTransitions(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Rapidly transition through all statuses
+	sd.StartRunning()
+	sd.MarkSuccess()
+	sd.MarkError()
+	sd.MarkWarning()
+	sd.MarkInfo()
+	sd.StartRunning()
+	sd.MarkSuccess()
+
+	// Should end in success state
+	if sd.GetStatus() != DataStatusSuccess {
+		t.Error("Should be in success state after rapid transitions")
+	}
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty after rapid transitions")
+	}
+}
+
+func TestIconSetEmptyStrings(t *testing.T) {
+	emptyIconSet := IconSet{
+		Running: "",
+		Success: "",
+		Error:   "",
+		Warning: "",
+		Info:    "",
+		None:    "",
+	}
+
+	sd := NewStructuredData("Test", WithIconSet(emptyIconSet))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Should handle empty icons gracefully
+	sd.MarkSuccess()
+	view := sd.View()
+
+	if view == "" {
+		t.Error("View should not be completely empty with empty icon set")
+	}
+}
+
+func TestIconSetVeryLongStrings(t *testing.T) {
+	longIconSet := IconSet{
+		Running: "🎉🎊✨🌟💫⭐",
+		Success: "✅✅✅✅✅",
+		Error:   "❌❌❌❌❌",
+		Warning: "⚠️⚠️⚠️⚠️⚠️",
+		Info:    "ℹ️ℹ️ℹ️ℹ️ℹ️",
+		None:    "⏺⏺⏺⏺⏺",
+	}
+
+	sd := NewStructuredData("Test", WithIconSet(longIconSet))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Should handle long icon strings without panic
+	sd.MarkSuccess()
+	view := sd.View()
+
+	if view == "" {
+		t.Error("View should not be empty with long icon strings")
+	}
+}
+
+func TestStructuredDataAnimationFrameOverflow(t *testing.T) {
+	sd := NewStructuredData("Test", WithSpinner(SpinnerThinking))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.StartRunning()
+
+	// Simulate many ticks (would overflow if not handled)
+	for i := 0; i < 10000; i++ {
+		sd.Update(structuredDataTickMsg{})
+	}
+
+	// Should still render correctly
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty after many ticks")
+	}
+
+	// Frame should still be valid
+	frame := sd.spinner.GetFrame(sd.animationFrame)
+	if frame == "" {
+		t.Error("Frame should not be empty after many ticks")
+	}
+}
+
+func TestStructuredDataMultipleIconSetsAllStatuses(t *testing.T) {
+	iconSets := []IconSet{
+		IconSetDefault,
+		IconSetClaude,
+		IconSetSymbols,
+		IconSetEmoji,
+		IconSetCircles,
+		IconSetMinimal,
+	}
+
+	statuses := []DataStatus{
+		DataStatusRunning,
+		DataStatusSuccess,
+		DataStatusError,
+		DataStatusWarning,
+		DataStatusInfo,
+		DataStatusNone,
+	}
+
+	// Test all combinations
+	for _, iconSet := range iconSets {
+		for _, status := range statuses {
+			sd := NewStructuredData("Test", WithIconSet(iconSet))
+			sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+			sd.status = status
+
+			view := sd.View()
+			if view == "" {
+				t.Errorf("View should not be empty for iconSet %v with status %v", iconSet, status)
+			}
+		}
+	}
+}
+
+func TestStructuredDataAllSpinners(t *testing.T) {
+	spinners := []Spinner{
+		SpinnerBlink,
+		SpinnerThinking,
+		SpinnerDots,
+		SpinnerLine,
+		SpinnerCircle,
+		SpinnerPulse,
+		SpinnerArrows,
+		SpinnerArc,
+		SpinnerCircleQuarters,
+		SpinnerSquare,
+		SpinnerDotsJumping,
+		SpinnerBouncingBar,
+		SpinnerBouncingBall,
+	}
+
+	// Test that all spinners work
+	for _, spinner := range spinners {
+		sd := NewStructuredData("Test", WithSpinner(spinner))
+		sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+		sd.StartRunning()
+
+		// Advance through all frames
+		for i := 0; i < spinner.FrameCount(); i++ {
+			sd.Update(structuredDataTickMsg{})
+			view := sd.View()
+			if view == "" {
+				t.Errorf("View should not be empty for spinner with %d frames", spinner.FrameCount())
+			}
+		}
+	}
+}
+
+func TestStructuredDataStatusWithNoWidth(t *testing.T) {
+	sd := NewStructuredData("Test", WithIconSet(IconSetClaude))
+
+	// Don't set width
+	sd.MarkSuccess()
+
+	view := sd.View()
+	if view != "" {
+		t.Error("View should be empty when width is not set")
+	}
+}
+
+func TestStructuredDataCombinedOptions(t *testing.T) {
+	// Test all options combined
+	sd := NewStructuredData("Test",
+		WithSpinner(SpinnerThinking),
+		WithIconSet(IconSetClaude),
+		WithRunningColor("\033[35m"), // Magenta
+		WithKeyWidth(30),
+		WithStructuredDataMaxLines(5))
+
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sd.AddRow("Key", "Value")
+
+	sd.StartRunning()
+	view := sd.View()
+
+	if view == "" {
+		t.Error("View should not be empty with all options combined")
+	}
+
+	// Verify options are applied
+	if sd.keyWidth != 30 {
+		t.Error("KeyWidth option not applied")
+	}
+
+	if sd.maxLines != 5 {
+		t.Error("MaxLines option not applied")
+	}
+
+	if sd.runningColor != "\033[35m" {
+		t.Error("RunningColor option not applied")
+	}
+}

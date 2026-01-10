@@ -690,3 +690,93 @@ func TestStructuredDataDefaultRunningColor(t *testing.T) {
 		t.Errorf("Expected default running color to be white \\033[37m, got %q", sd.runningColor)
 	}
 }
+
+func TestStructuredDataCustomSpinner(t *testing.T) {
+	sd := NewStructuredData("Test", WithSpinner(SpinnerThinking))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	if sd.spinner.FrameCount() != 5 {
+		t.Errorf("Expected SpinnerThinking to have 5 frames, got %d", sd.spinner.FrameCount())
+	}
+
+	sd.StartRunning()
+
+	// Verify different frames appear
+	frames := make(map[string]bool)
+	for i := 0; i < 5; i++ {
+		view := sd.View()
+		frames[view] = true
+		sd.Update(structuredDataTickMsg{})
+	}
+
+	// Should have seen multiple different frames
+	if len(frames) < 2 {
+		t.Error("Should see multiple different spinner frames")
+	}
+}
+
+func TestStructuredDataCustomIconSet(t *testing.T) {
+	sd := NewStructuredData("Test", WithIconSet(IconSetSymbols))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.MarkSuccess()
+	view := sd.View()
+
+	// Should contain the checkmark from IconSetSymbols
+	if !strings.Contains(view, "✓") {
+		t.Error("View should contain checkmark icon from IconSetSymbols")
+	}
+}
+
+func TestStructuredDataIconSetClaude(t *testing.T) {
+	sd := NewStructuredData("Test", WithIconSet(IconSetClaude))
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Test each status
+	sd.MarkSuccess()
+	viewSuccess := sd.View()
+	if !strings.Contains(viewSuccess, "✓") {
+		t.Error("Success should show checkmark")
+	}
+
+	sd.MarkError()
+	viewError := sd.View()
+	if !strings.Contains(viewError, "✗") {
+		t.Error("Error should show X mark")
+	}
+
+	sd.MarkWarning()
+	viewWarning := sd.View()
+	if !strings.Contains(viewWarning, "⚠") {
+		t.Error("Warning should show warning symbol")
+	}
+}
+
+func TestSpinnerGetFrame(t *testing.T) {
+	spinner := SpinnerThinking
+
+	// Test frame cycling
+	if spinner.GetFrame(0) != "." {
+		t.Error("Frame 0 should be '.'")
+	}
+	if spinner.GetFrame(1) != "*" {
+		t.Error("Frame 1 should be '*'")
+	}
+	if spinner.GetFrame(5) != "." {
+		t.Error("Frame 5 should wrap to '.'")
+	}
+}
+
+func TestSpinnerFrameCount(t *testing.T) {
+	if SpinnerThinking.FrameCount() != 5 {
+		t.Errorf("SpinnerThinking should have 5 frames, got %d", SpinnerThinking.FrameCount())
+	}
+
+	if SpinnerDots.FrameCount() != 10 {
+		t.Errorf("SpinnerDots should have 10 frames, got %d", SpinnerDots.FrameCount())
+	}
+
+	if SpinnerBlink.FrameCount() != 2 {
+		t.Errorf("SpinnerBlink should have 2 frames, got %d", SpinnerBlink.FrameCount())
+	}
+}

@@ -588,15 +588,25 @@ sd := tui.FromKeyValuePairs("Config",
 **Options:**
 - `WithStructuredDataMaxLines(n)` - Collapse to N lines
 - `WithKeyWidth(width)` - Fixed width for key column (auto if 0)
-- `WithStructuredDataIcon(icon)` - Custom icon
+- `WithStructuredDataIcon(icon)` - Custom icon (deprecated, use WithIconSet)
 - `WithRunningColor(color)` - ANSI color code for running status (default: white "\033[37m")
+- `WithSpinner(spinner)` - Spinner animation (default: SpinnerBlink)
+- `WithIconSet(iconSet)` - Icon set for status indicators (default: IconSetDefault)
 
-**Animated Status Icons:**
+**Animated Spinners & Status Icons:**
 
-The icon can animate and change color based on status:
+The component supports configurable spinner animations and icon sets:
 
 ```go
-// Start blinking animation (default: white)
+// Use different spinner animations
+sd := tui.NewStructuredData("Task", tui.WithSpinner(tui.SpinnerThinking))
+sd := tui.NewStructuredData("Task", tui.WithSpinner(tui.SpinnerDots))
+
+// Use different icon sets
+sd := tui.NewStructuredData("Task", tui.WithIconSet(tui.IconSetClaude))
+sd := tui.NewStructuredData("Task", tui.WithIconSet(tui.IconSetSymbols))
+
+// Start animation
 cmd := sd.StartRunning()
 
 // Mark as complete with status-based color
@@ -605,23 +615,45 @@ sd.MarkError()    // Red icon
 sd.MarkWarning()  // Yellow icon
 sd.MarkInfo()     // White icon
 
-// Or use SetStatus directly
-cmd := sd.SetStatus(tui.DataStatusRunning)  // Blinking
-sd.SetStatus(tui.DataStatusSuccess)         // Green, no animation
-
 // Customize running color
-sd := tui.NewStructuredData("Task", tui.WithRunningColor("\033[36m")) // Cyan
+sd := tui.NewStructuredData("Task",
+    tui.WithSpinner(tui.SpinnerThinking),
+    tui.WithIconSet(tui.IconSetClaude),
+    tui.WithRunningColor("\033[36m"))
 ```
 
-**Status Colors:**
-- `DataStatusRunning` - Blinking icon (default: white, configurable)
-- `DataStatusSuccess` - Static green icon (⏺)
-- `DataStatusError` - Static red icon (⏺)
-- `DataStatusWarning` - Static yellow icon (⏺)
-- `DataStatusInfo` - Static white icon (⏺)
-- `DataStatusNone` - Static cyan icon (⏺, default)
+**Available Spinners:**
+- `SpinnerBlink` - Simple blink on/off (default)
+- `SpinnerThinking` - Claude Code style: . * ÷ + •
+- `SpinnerDots` - Braille dots (smooth): ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+- `SpinnerLine` - Classic line: ─ \ | /
+- `SpinnerCircle` - Rotating circle: ◴◷◶◵
+- `SpinnerPulse` - Pulsing circle: ○◔◐◕●◕◐◔
+- `SpinnerArrows` - Rotating arrows: ←↖↑↗→↘↓↙
+- `SpinnerArc` - Growing arc: ◜◠◝◞◡◟
+- `SpinnerCircleQuarters` - Circle quarters: ◐◓◑◒
+- `SpinnerSquare` - Rotating square: ◰◳◲◱
+- `SpinnerDotsJumping` - Jumping dots: ⢄⢂⢁⡁⡈⡐⡠
+- `SpinnerBouncingBar` - Bouncing bar animation
+- `SpinnerBouncingBall` - Bouncing ball animation
 
-The animation blinks at 500ms intervals and automatically stops when status changes from Running to a final state.
+**Available Icon Sets:**
+- `IconSetDefault` - All ⏺ (default)
+- `IconSetClaude` - Claude Code style: ⏺ ✓ ✗ ⚠ ⏺
+- `IconSetSymbols` - Unicode symbols: ⏺ ✓ ✗ ⚠ ℹ
+- `IconSetEmoji` - Emoji: ⏺ ✅ ❌ ⚡ 💡
+- `IconSetCircles` - Circles: ○ ● ◯ ◐ ○
+- `IconSetMinimal` - ASCII: · + x ! i
+
+**Status Colors:**
+- `DataStatusRunning` - Animated spinner (color configurable)
+- `DataStatusSuccess` - Static green icon
+- `DataStatusError` - Static red icon
+- `DataStatusWarning` - Static yellow icon
+- `DataStatusInfo` - Static white icon
+- `DataStatusNone` - Static cyan icon (default)
+
+The animation runs at 500ms intervals and automatically stops when status changes from Running to a final state.
 
 **Output:**
 ```

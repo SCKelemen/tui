@@ -50,11 +50,13 @@ type StructuredData struct {
 	focused        bool
 	expanded       bool
 	maxLines       int        // Max lines when collapsed (0 = show all)
-	icon           string
+	icon           string     // Deprecated: use iconSet instead
 	keyWidth       int        // Width for key column (auto-calculated if 0)
 	status         DataStatus // Current status (Running, Success, Error, Info)
 	animationFrame int        // Frame counter for blinking animation
 	runningColor   string     // ANSI color code for running status (default: white)
+	spinner        Spinner    // Spinner animation
+	iconSet        IconSet    // Icon set for different statuses
 }
 
 // NewStructuredData creates a new structured data component
@@ -62,10 +64,12 @@ func NewStructuredData(title string, opts ...StructuredDataOption) *StructuredDa
 	sd := &StructuredData{
 		title:        title,
 		items:        []DataItem{},
-		expanded:     true,       // Default to expanded
-		icon:         "⏺",
-		keyWidth:     0,          // Auto-calculate
-		runningColor: "\033[37m", // Default to white
+		expanded:     true,                // Default to expanded
+		icon:         "⏺",                 // Deprecated fallback
+		keyWidth:     0,                   // Auto-calculate
+		runningColor: "\033[37m",          // Default to white
+		spinner:      SpinnerBlink,        // Default spinner
+		iconSet:      IconSetDefault,      // Default icon set
 	}
 
 	for _, opt := range opts {
@@ -103,6 +107,20 @@ func WithStructuredDataIcon(icon string) StructuredDataOption {
 func WithRunningColor(color string) StructuredDataOption {
 	return func(sd *StructuredData) {
 		sd.runningColor = color
+	}
+}
+
+// WithSpinner sets the spinner animation
+func WithSpinner(spinner Spinner) StructuredDataOption {
+	return func(sd *StructuredData) {
+		sd.spinner = spinner
+	}
+}
+
+// WithIconSet sets the icon set for status indicators
+func WithIconSet(iconSet IconSet) StructuredDataOption {
+	return func(sd *StructuredData) {
+		sd.iconSet = iconSet
 	}
 }
 
@@ -424,26 +442,27 @@ func (sd *StructuredData) renderItem(item DataItem, keyWidth int, isFirst bool) 
 func (sd *StructuredData) renderIcon() string {
 	switch sd.status {
 	case DataStatusRunning:
-		// Blink: alternate between visible and invisible
-		if sd.animationFrame%2 == 0 {
-			return sd.runningColor + sd.icon + "\033[0m" // Configurable color (visible)
+		// Use spinner animation
+		frame := sd.spinner.GetFrame(sd.animationFrame)
+		if frame == "" {
+			frame = sd.iconSet.Running
 		}
-		return " " // Invisible (blank space same width as icon)
+		return sd.runningColor + frame + "\033[0m"
 
 	case DataStatusSuccess:
-		return "\033[32m" + sd.icon + "\033[0m" // Green
+		return "\033[32m" + sd.iconSet.Success + "\033[0m" // Green
 
 	case DataStatusError:
-		return "\033[31m" + sd.icon + "\033[0m" // Red
+		return "\033[31m" + sd.iconSet.Error + "\033[0m" // Red
 
 	case DataStatusWarning:
-		return "\033[33m" + sd.icon + "\033[0m" // Yellow
+		return "\033[33m" + sd.iconSet.Warning + "\033[0m" // Yellow
 
 	case DataStatusInfo:
-		return "\033[37m" + sd.icon + "\033[0m" // White
+		return "\033[37m" + sd.iconSet.Info + "\033[0m" // White
 
 	default: // DataStatusNone
-		return "\033[36m" + sd.icon + "\033[0m" // Default cyan
+		return "\033[36m" + sd.iconSet.None + "\033[0m" // Default cyan
 	}
 }
 

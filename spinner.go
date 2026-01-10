@@ -22,9 +22,9 @@ var (
 		Frames: []string{"◴", "◷", "◶", "◵"},
 	}
 
-	// SpinnerThinking - Claude Code's thinking animation
+	// SpinnerThinking - Claude Code's thinking animation (small to large)
 	SpinnerThinking = Spinner{
-		Frames: []string{".", "*", "÷", "+", "•"},
+		Frames: []string{".", "+", "*", "÷", "•"},
 	}
 
 	// SpinnerBlink - Simple blink (on/off)

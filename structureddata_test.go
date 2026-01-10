@@ -755,12 +755,15 @@ func TestStructuredDataIconSetClaude(t *testing.T) {
 func TestSpinnerGetFrame(t *testing.T) {
 	spinner := SpinnerThinking
 
-	// Test frame cycling
+	// Test frame cycling (small to large)
 	if spinner.GetFrame(0) != "." {
 		t.Error("Frame 0 should be '.'")
 	}
-	if spinner.GetFrame(1) != "*" {
-		t.Error("Frame 1 should be '*'")
+	if spinner.GetFrame(1) != "+" {
+		t.Error("Frame 1 should be '+'")
+	}
+	if spinner.GetFrame(2) != "*" {
+		t.Error("Frame 2 should be '*'")
 	}
 	if spinner.GetFrame(5) != "." {
 		t.Error("Frame 5 should wrap to '.'")

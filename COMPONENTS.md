@@ -624,7 +624,7 @@ sd := tui.NewStructuredData("Task",
 
 **Available Spinners:**
 - `SpinnerBlink` - Simple blink on/off (default)
-- `SpinnerThinking` - Claude Code style: . * ÷ + •
+- `SpinnerThinking` - Claude Code style (small to large): . + * ÷ •
 - `SpinnerDots` - Braille dots (smooth): ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
 - `SpinnerLine` - Classic line: ─ \ | /
 - `SpinnerCircle` - Rotating circle: ◴◷◶◵

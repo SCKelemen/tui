@@ -458,3 +458,186 @@ func TestStructuredDataInit(t *testing.T) {
 		t.Error("Init should return nil")
 	}
 }
+
+func TestStructuredDataDataStatusRunning(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	cmd := sd.StartRunning()
+	if cmd == nil {
+		t.Error("StartRunning should return tick command")
+	}
+
+	if sd.GetStatus() != DataStatusRunning {
+		t.Error("Status should be Running")
+	}
+
+	view1 := sd.View()
+	if view1 == "" {
+		t.Error("View should not be empty")
+	}
+
+	// Simulate tick to advance animation
+	sd.Update(structuredDataTickMsg{})
+	view2 := sd.View()
+
+	// Views should differ due to blinking animation
+	if view1 == view2 {
+		t.Error("Views should differ due to animation")
+	}
+}
+
+func TestStructuredDataDataStatusSuccess(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sd.AddRow("Key", "Value")
+
+	sd.MarkSuccess()
+
+	if sd.GetStatus() != DataStatusSuccess {
+		t.Error("Status should be Success")
+	}
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+
+	// Green ANSI code should be present
+	if !strings.Contains(view, "\033[32m") {
+		t.Error("View should contain green color code for success")
+	}
+}
+
+func TestStructuredDataDataStatusError(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sd.AddRow("Key", "Value")
+
+	sd.MarkError()
+
+	if sd.GetStatus() != DataStatusError {
+		t.Error("Status should be Error")
+	}
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+
+	// Red ANSI code should be present
+	if !strings.Contains(view, "\033[31m") {
+		t.Error("View should contain red color code for error")
+	}
+}
+
+func TestStructuredDataDataStatusInfo(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sd.AddRow("Key", "Value")
+
+	sd.MarkInfo()
+
+	if sd.GetStatus() != DataStatusInfo {
+		t.Error("Status should be Info")
+	}
+
+	view := sd.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+
+	// White ANSI code should be present
+	if !strings.Contains(view, "\033[37m") {
+		t.Error("View should contain white color code for info")
+	}
+}
+
+func TestStructuredDataSetStatus(t *testing.T) {
+	sd := NewStructuredData("Test")
+
+	// Test setting to running
+	cmd := sd.SetStatus(DataStatusRunning)
+	if cmd == nil {
+		t.Error("SetStatus(Running) should return tick command")
+	}
+	if sd.GetStatus() != DataStatusRunning {
+		t.Error("Status should be Running")
+	}
+
+	// Test setting to success (no command)
+	cmd = sd.SetStatus(DataStatusSuccess)
+	if cmd != nil {
+		t.Error("SetStatus(Success) should return nil")
+	}
+	if sd.GetStatus() != DataStatusSuccess {
+		t.Error("Status should be Success")
+	}
+}
+
+func TestStructuredDataAnimationFrameAdvances(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.StartRunning()
+	initialFrame := sd.animationFrame
+
+	// Simulate several ticks
+	for i := 0; i < 5; i++ {
+		sd.Update(structuredDataTickMsg{})
+	}
+
+	if sd.animationFrame <= initialFrame {
+		t.Error("Animation frame should advance on tick")
+	}
+}
+
+func TestStructuredDataInitWithRunningStatus(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.StartRunning()
+
+	cmd := sd.Init()
+	if cmd == nil {
+		t.Error("Init should return tick command when status is Running")
+	}
+}
+
+func TestStructuredDataStatusTransitions(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Start running
+	sd.StartRunning()
+	if sd.GetStatus() != DataStatusRunning {
+		t.Error("Should be running")
+	}
+
+	// Mark success
+	sd.MarkSuccess()
+	if sd.GetStatus() != DataStatusSuccess {
+		t.Error("Should be success")
+	}
+
+	// Tick should not continue animation after success
+	sd.Update(structuredDataTickMsg{})
+	// No error expected, just verify it doesn't panic
+}
+
+func TestStructuredDataBlinkingAnimation(t *testing.T) {
+	sd := NewStructuredData("Test")
+	sd.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	sd.StartRunning()
+
+	// Get views at different animation frames
+	views := make([]string, 4)
+	for i := 0; i < 4; i++ {
+		views[i] = sd.View()
+		sd.Update(structuredDataTickMsg{})
+	}
+
+	// Should see alternating patterns (blink on/off)
+	if views[0] == views[1] && views[1] == views[2] {
+		t.Error("Views should differ due to blinking animation")
+	}
+}

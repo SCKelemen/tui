@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -17,6 +18,20 @@ const (
 	ItemValue // Value only, no key
 )
 
+// DataStatus represents the status of the data display
+type DataStatus int
+
+const (
+	DataStatusNone DataStatus = iota
+	DataStatusRunning
+	DataStatusSuccess
+	DataStatusError
+	DataStatusInfo
+)
+
+// structuredDataTickMsg is sent periodically for animation
+type structuredDataTickMsg time.Time
+
 // DataItem represents a single item in structured data
 type DataItem struct {
 	Type   ItemType
@@ -28,14 +43,16 @@ type DataItem struct {
 
 // StructuredData displays formatted key-value data with tree connectors
 type StructuredData struct {
-	width      int
-	title      string
-	items      []DataItem
-	focused    bool
-	expanded   bool
-	maxLines   int  // Max lines when collapsed (0 = show all)
-	icon       string
-	keyWidth   int  // Width for key column (auto-calculated if 0)
+	width          int
+	title          string
+	items          []DataItem
+	focused        bool
+	expanded       bool
+	maxLines       int        // Max lines when collapsed (0 = show all)
+	icon           string
+	keyWidth       int        // Width for key column (auto-calculated if 0)
+	status         DataStatus // Current status (Running, Success, Error, Info)
+	animationFrame int        // Frame counter for blinking animation
 }
 
 // NewStructuredData creates a new structured data component
@@ -165,7 +182,17 @@ func (sd *StructuredData) Clear() *StructuredData {
 
 // Init initializes the structured data component
 func (sd *StructuredData) Init() tea.Cmd {
+	if sd.status == DataStatusRunning {
+		return sd.tick()
+	}
 	return nil
+}
+
+// tick returns a command that sends a tick message after a delay
+func (sd *StructuredData) tick() tea.Cmd {
+	return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+		return structuredDataTickMsg(t)
+	})
 }
 
 // Update handles messages
@@ -181,6 +208,12 @@ func (sd *StructuredData) Update(msg tea.Msg) (Component, tea.Cmd) {
 				sd.ToggleExpanded()
 			}
 		}
+
+	case structuredDataTickMsg:
+		if sd.status == DataStatusRunning {
+			sd.animationFrame++
+			return sd, sd.tick()
+		}
 	}
 	return sd, nil
 }
@@ -194,11 +227,12 @@ func (sd *StructuredData) View() string {
 	var lines []string
 
 	// Header with icon and title
+	icon := sd.renderIcon()
 	var header string
 	if sd.title != "" {
-		header = fmt.Sprintf("\033[36m%s\033[0m \033[1m%s\033[0m", sd.icon, sd.title)
+		header = fmt.Sprintf("%s \033[1m%s\033[0m", icon, sd.title)
 	} else {
-		header = fmt.Sprintf("\033[36m%s\033[0m \033[1mData\033[0m", sd.icon)
+		header = fmt.Sprintf("%s \033[1mData\033[0m", icon)
 	}
 
 	if sd.focused {
@@ -267,6 +301,43 @@ func (sd *StructuredData) SetExpanded(expanded bool) {
 	sd.expanded = expanded
 }
 
+// Status management methods
+
+// SetStatus sets the status and starts/stops animation
+func (sd *StructuredData) SetStatus(status DataStatus) tea.Cmd {
+	sd.status = status
+	sd.animationFrame = 0
+	if status == DataStatusRunning {
+		return sd.tick()
+	}
+	return nil
+}
+
+// StartRunning sets status to running and begins animation
+func (sd *StructuredData) StartRunning() tea.Cmd {
+	return sd.SetStatus(DataStatusRunning)
+}
+
+// MarkSuccess sets status to success (green icon, no animation)
+func (sd *StructuredData) MarkSuccess() {
+	sd.status = DataStatusSuccess
+}
+
+// MarkError sets status to error (red icon, no animation)
+func (sd *StructuredData) MarkError() {
+	sd.status = DataStatusError
+}
+
+// MarkInfo sets status to info (white icon, no animation)
+func (sd *StructuredData) MarkInfo() {
+	sd.status = DataStatusInfo
+}
+
+// GetStatus returns the current status
+func (sd *StructuredData) GetStatus() DataStatus {
+	return sd.status
+}
+
 // Helper methods
 
 // calculateKeyWidth finds the longest key for alignment
@@ -331,6 +402,30 @@ func (sd *StructuredData) renderItem(item DataItem, keyWidth int, isFirst bool) 
 
 	default:
 		return prefix + item.Value
+	}
+}
+
+// renderIcon renders the status icon with animation
+func (sd *StructuredData) renderIcon() string {
+	switch sd.status {
+	case DataStatusRunning:
+		// Blink: alternate between visible and invisible
+		if sd.animationFrame%2 == 0 {
+			return "\033[36m" + sd.icon + "\033[0m" // Cyan (visible)
+		}
+		return " " // Invisible (blank space same width as icon)
+
+	case DataStatusSuccess:
+		return "\033[32m" + sd.icon + "\033[0m" // Green
+
+	case DataStatusError:
+		return "\033[31m" + sd.icon + "\033[0m" // Red
+
+	case DataStatusInfo:
+		return "\033[37m" + sd.icon + "\033[0m" // White
+
+	default: // DataStatusNone
+		return "\033[36m" + sd.icon + "\033[0m" // Default cyan
 	}
 }
 

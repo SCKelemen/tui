@@ -590,6 +590,33 @@ sd := tui.FromKeyValuePairs("Config",
 - `WithKeyWidth(width)` - Fixed width for key column (auto if 0)
 - `WithStructuredDataIcon(icon)` - Custom icon
 
+**Animated Status Icons:**
+
+The icon can animate and change color based on status:
+
+```go
+// Start blinking animation (cyan)
+cmd := sd.StartRunning()
+
+// Mark as complete with status-based color
+sd.MarkSuccess()  // Green icon
+sd.MarkError()    // Red icon
+sd.MarkInfo()     // White icon
+
+// Or use SetStatus directly
+cmd := sd.SetStatus(tui.DataStatusRunning)  // Blinking
+sd.SetStatus(tui.DataStatusSuccess)         // Green, no animation
+```
+
+**Status Colors:**
+- `DataStatusRunning` - Blinking cyan icon (⏺)
+- `DataStatusSuccess` - Static green icon (⏺)
+- `DataStatusError` - Static red icon (⏺)
+- `DataStatusInfo` - Static white icon (⏺)
+- `DataStatusNone` - Static cyan icon (⏺, default)
+
+The animation blinks at 500ms intervals and automatically stops when status changes from Running to a final state.
+
 **Output:**
 ```
 ⏺ Session Summary

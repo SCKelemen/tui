@@ -10,7 +10,23 @@ import (
 	"github.com/SCKelemen/layout"
 )
 
-// Dashboard displays multiple stat cards in a responsive grid layout
+// Dashboard displays multiple stat cards in a responsive grid layout with interactive
+// keyboard navigation. It supports arrow keys (←→↑↓) and vim-style (hjkl) navigation,
+// visual focus states, and drill-down modals for detailed metric views.
+//
+// The dashboard automatically calculates card dimensions based on the terminal size and
+// configured layout (fixed columns or responsive grid). Cards can be navigated using
+// keyboard controls, and pressing Enter on a focused card opens a DetailModal with
+// expanded metrics and trend graphs.
+//
+// Example usage:
+//
+//	dashboard := tui.NewDashboard(
+//	    tui.WithDashboardTitle("System Metrics"),
+//	    tui.WithResponsiveLayout(30),
+//	    tui.WithCards(cpuCard, memoryCard, diskCard),
+//	)
+//	dashboard.Focus()
 type Dashboard struct {
 	width   int
 	height  int
@@ -77,7 +93,17 @@ func WithCards(cards ...*StatCard) DashboardOption {
 	}
 }
 
-// NewDashboard creates a new dashboard
+// NewDashboard creates a new dashboard with the given configuration options.
+//
+// Defaults:
+//   - columns: 3
+//   - gap: 2 characters
+//   - minCardWidth: 30 characters
+//   - responsive: true
+//   - theme: DefaultTheme()
+//
+// The dashboard automatically focuses the first card if cards are provided.
+// Use WithCards, WithGridColumns, WithResponsiveLayout, and other options to customize.
 func NewDashboard(opts ...DashboardOption) *Dashboard {
 	d := &Dashboard{
 		columns:           3,
@@ -109,7 +135,20 @@ func (d *Dashboard) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles messages
+// Update handles Bubble Tea messages including window resize and keyboard navigation.
+//
+// Window resize messages (tea.WindowSizeMsg) trigger recalculation of card dimensions.
+//
+// Keyboard controls (when focused):
+//   - ←, h: Move focus left
+//   - →, l: Move focus right
+//   - ↑, k: Move focus up (grid-aware)
+//   - ↓, j: Move focus down (grid-aware)
+//   - Enter: Open DetailModal for focused card
+//   - ESC: Clear selection
+//
+// When the DetailModal is visible, all keyboard input is forwarded to it. When the
+// modal closes, focus returns to the dashboard.
 func (d *Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -160,7 +199,12 @@ func (d *Dashboard) Update(msg tea.Msg) (Component, tea.Cmd) {
 	return d, nil
 }
 
-// View renders the dashboard
+// View renders the dashboard as a string, displaying all cards in a grid layout.
+//
+// If a DetailModal is visible, it is overlayed on top of the dashboard view. The
+// rendering uses line-by-line compositing to merge the modal and dashboard views.
+//
+// Returns an empty string if the dashboard width is zero or there are no cards.
 func (d *Dashboard) View() string {
 	if d.width == 0 || len(d.cards) == 0 {
 		return ""
@@ -503,13 +547,15 @@ func (d *Dashboard) renderSimple() string {
 	return b.String()
 }
 
-// AddCard adds a stat card to the dashboard
+// AddCard adds a stat card to the dashboard and updates card dimensions to fit the
+// current layout. Cards are appended to the end of the grid.
 func (d *Dashboard) AddCard(card *StatCard) {
 	d.cards = append(d.cards, card)
 	d.updateCardDimensions()
 }
 
-// RemoveCard removes a stat card from the dashboard by index
+// RemoveCard removes a stat card from the dashboard by index and updates card
+// dimensions to fit the new layout. Silently ignores invalid indices.
 func (d *Dashboard) RemoveCard(index int) {
 	if index >= 0 && index < len(d.cards) {
 		d.cards = append(d.cards[:index], d.cards[index+1:]...)
@@ -517,12 +563,14 @@ func (d *Dashboard) RemoveCard(index int) {
 	}
 }
 
-// GetCards returns all stat cards
+// GetCards returns a slice of all stat cards currently in the dashboard.
+// The returned slice is the internal slice, not a copy.
 func (d *Dashboard) GetCards() []*StatCard {
 	return d.cards
 }
 
-// SetCards replaces all stat cards
+// SetCards replaces all stat cards in the dashboard and updates card dimensions
+// to fit the new layout.
 func (d *Dashboard) SetCards(cards []*StatCard) {
 	d.cards = cards
 	d.updateCardDimensions()

@@ -11,7 +11,24 @@ import (
 	"github.com/SCKelemen/layout"
 )
 
-// StatCard displays a metric with title, value, change indicator, and optional sparkline
+// StatCard displays a single metric with title, value, change indicator, and optional
+// sparkline trend visualization. Cards support three visual states:
+//   - Normal: Thin single-line borders (┌─┐)
+//   - Focused: Double-line cyan borders (╔═╗)
+//   - Selected: Thick yellow borders (┏━┓)
+//
+// StatCards are typically used within a Dashboard for displaying multiple metrics in a
+// grid layout. They render change indicators with directional arrows (↑↓→) and optional
+// Unicode sparklines using block characters (▁▂▃▄▅▆▇█).
+//
+// Example usage:
+//
+//	card := tui.NewStatCard(
+//	    tui.WithTitle("CPU Usage"),
+//	    tui.WithValue("42%"),
+//	    tui.WithChange(5, 13.5),
+//	    tui.WithTrend([]float64{35, 38, 40, 42, 45}),
+//	)
 type StatCard struct {
 	width    int
 	height   int
@@ -83,7 +100,17 @@ func WithTrendColor(color string) StatCardOption {
 	}
 }
 
-// NewStatCard creates a new stat card
+// NewStatCard creates a new stat card with the given configuration options.
+//
+// Defaults:
+//   - width: 30 characters
+//   - height: 8 lines
+//   - color: #2196F3 (blue)
+//   - trendColor: #4CAF50 (green)
+//   - theme: DefaultTheme()
+//
+// Use WithTitle, WithValue, WithChange, WithTrend, and other options to customize
+// the card's content and appearance.
 func NewStatCard(opts ...StatCardOption) *StatCard {
 	s := &StatCard{
 		width:      30,
@@ -105,7 +132,9 @@ func (s *StatCard) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles messages
+// Update handles Bubble Tea messages. Currently only processes window resize messages
+// (tea.WindowSizeMsg) to update the card's width and height. Individual cards typically
+// don't handle resize directly as the Dashboard manages their dimensions.
 func (s *StatCard) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -116,7 +145,9 @@ func (s *StatCard) Update(msg tea.Msg) (Component, tea.Cmd) {
 	return s, nil
 }
 
-// View renders the stat card
+// View renders the stat card as a bordered box containing the title, value, change
+// indicator, and optional sparkline. The border style changes based on focus and
+// selection state. Returns an empty string if width is zero.
 func (s *StatCard) View() string {
 	if s.width == 0 {
 		return ""

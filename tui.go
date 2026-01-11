@@ -1,5 +1,49 @@
 // Package tui provides a comprehensive Terminal User Interface framework
 // for building sophisticated CLI applications with modern UX patterns.
+//
+// The framework is built on top of Bubble Tea and provides high-level components
+// for common UI patterns including interactive dashboards, file explorers, command
+// palettes, status bars, and modal dialogs.
+//
+// Key features:
+//   - Interactive dashboards with keyboard navigation and drill-down modals
+//   - StatCards with sparklines, change indicators, and focus states
+//   - Command palettes with fuzzy search
+//   - File explorers with tree navigation
+//   - Status bars with keybinding hints
+//   - Modal dialogs for confirmations and details
+//   - Full keyboard navigation with vim-style bindings
+//   - Responsive layouts that adapt to terminal size
+//   - Theme support via design tokens
+//
+// Architecture:
+//
+// All components implement the Component interface, which follows the Bubble Tea
+// pattern with Init/Update/View methods plus Focus/Blur/Focused for focus management.
+//
+// Components can be composed together to build complex UIs. The Application type
+// provides a container for managing multiple components with automatic focus cycling.
+//
+// Example usage:
+//
+//	// Create components
+//	dashboard := tui.NewDashboard(
+//	    tui.WithDashboardTitle("Metrics"),
+//	    tui.WithCards(cpuCard, memCard),
+//	)
+//	dashboard.Focus()
+//
+//	statusBar := tui.NewStatusBar()
+//	statusBar.SetMessage("Ready")
+//
+//	// Run with Bubble Tea
+//	p := tea.NewProgram(model{
+//	    dashboard: dashboard,
+//	    statusBar: statusBar,
+//	}, tea.WithAltScreen())
+//	p.Run()
+//
+// For detailed component documentation, see the individual component types.
 package tui
 
 import (

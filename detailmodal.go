@@ -8,7 +8,27 @@ import (
 	design "github.com/SCKelemen/design-system"
 )
 
-// DetailModal displays detailed information about a StatCard
+// DetailModal displays detailed information about a StatCard in a centered overlay modal.
+// It shows expanded metrics including an 8-line trend graph, statistics (min, max, avg),
+// change indicators, and optional historical data.
+//
+// The modal is typically opened by pressing Enter on a focused card in a Dashboard.
+// It can be closed by pressing ESC or 'q'.
+//
+// Visual layout:
+//   - Centered at 70% width and 80% height of the viewport
+//   - Double-line borders with title
+//   - Large 8-line trend graph using Unicode blocks (▀▄█)
+//   - Statistics section (min, max, average)
+//   - Optional historical data section
+//
+// Example usage:
+//
+//	modal := tui.NewDetailModal()
+//	modal.SetContent(statCard)
+//	modal.Show() // Opens the modal
+//	// ... user closes with ESC
+//	modal.IsVisible() // Returns false after close
 type DetailModal struct {
 	width   int
 	height  int
@@ -54,7 +74,15 @@ func WithHistory(history []string) DetailModalOption {
 	}
 }
 
-// NewDetailModal creates a new detail modal
+// NewDetailModal creates a new detail modal with the given configuration options.
+//
+// The modal is initially hidden and must be shown with Show(). Use SetContent to
+// populate the modal with data from a StatCard, then Show() to display it.
+//
+// Defaults:
+//   - visible: false
+//   - theme: DefaultTheme()
+//   - history: empty slice
 func NewDetailModal(opts ...DetailModalOption) *DetailModal {
 	m := &DetailModal{
 		tokens:  design.DefaultTheme(),
@@ -74,7 +102,14 @@ func (m *DetailModal) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles messages
+// Update handles Bubble Tea messages including window resize and keyboard input.
+//
+// Window resize messages (tea.WindowSizeMsg) update the modal's dimensions for centering.
+//
+// Keyboard controls (when visible and focused):
+//   - ESC, q: Close the modal
+//
+// Messages are only processed when the modal is both visible and focused.
 func (m *DetailModal) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -95,7 +130,11 @@ func (m *DetailModal) Update(msg tea.Msg) (Component, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the modal
+// View renders the modal as a centered overlay. Returns an empty string if the modal
+// is not visible or width is zero.
+//
+// The modal is sized at 70% of viewport width (minimum 60 chars) and 80% of viewport
+// height (minimum 20 lines), and centered both horizontally and vertically.
 func (m *DetailModal) View() string {
 	if !m.visible || m.width == 0 {
 		return ""
@@ -164,13 +203,15 @@ func (m *DetailModal) Focused() bool {
 	return m.focused
 }
 
-// Show displays the modal
+// Show displays the modal and sets it as focused. Call this after populating the
+// modal with SetContent to display it to the user.
 func (m *DetailModal) Show() {
 	m.visible = true
 	m.focused = true
 }
 
-// Hide hides the modal
+// Hide hides the modal and removes focus. This is typically called when the user
+// presses ESC or 'q' to close the modal.
 func (m *DetailModal) Hide() {
 	m.visible = false
 	m.focused = false
@@ -181,7 +222,9 @@ func (m *DetailModal) IsVisible() bool {
 	return m.visible
 }
 
-// SetContent updates the modal content from a StatCard
+// SetContent updates the modal content from a StatCard, copying all relevant fields
+// including title, value, subtitle, change data, trend data, and colors. This should
+// be called before Show() to populate the modal with the card's data.
 func (m *DetailModal) SetContent(card *StatCard) {
 	m.title = card.title
 	m.value = card.value

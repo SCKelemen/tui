@@ -8,16 +8,34 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Command represents an executable command in the palette
+// Command represents an executable command in the command palette with metadata
+// for display and categorization.
 type Command struct {
-	Name        string
-	Description string
-	Category    string
-	Action      func() tea.Cmd
-	Keybinding  string
+	Name        string          // Display name of the command
+	Description string          // Brief description of what the command does
+	Category    string          // Category for grouping (e.g., "File", "Edit", "View")
+	Action      func() tea.Cmd  // Function to execute when command is selected
+	Keybinding  string          // Optional keyboard shortcut (e.g., "Ctrl+S")
 }
 
-// CommandPalette is a fuzzy-searchable command launcher
+// CommandPalette is a fuzzy-searchable command launcher inspired by VS Code's command
+// palette. It provides a popup interface for quickly executing commands via keyboard.
+//
+// Features:
+//   - Fuzzy search filtering
+//   - Keyboard navigation (↑↓ or j/k)
+//   - Category grouping
+//   - Keybinding hints
+//   - Toggle visibility with Ctrl+K
+//
+// Example usage:
+//
+//	commands := []tui.Command{
+//	    {Name: "Save File", Description: "Save current file", Category: "File", Keybinding: "Ctrl+S"},
+//	    {Name: "Open File", Description: "Open a file", Category: "File", Keybinding: "Ctrl+O"},
+//	}
+//	palette := tui.NewCommandPalette(commands)
+//	palette.Show()
 type CommandPalette struct {
 	width      int
 	height     int
@@ -30,7 +48,11 @@ type CommandPalette struct {
 	maxVisible int
 }
 
-// NewCommandPalette creates a new command palette
+// NewCommandPalette creates a new command palette with the given list of commands.
+// The palette is initially hidden and can be shown/hidden with Show() and Hide(),
+// or toggled with Toggle().
+//
+// The palette displays up to 8 commands at a time and supports fuzzy searching.
 func NewCommandPalette(commands []Command) *CommandPalette {
 	ti := textinput.New()
 	ti.Placeholder = "Type to search commands..."

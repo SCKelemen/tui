@@ -7,14 +7,26 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// StatusBar displays status information and keybindings at the bottom of the screen
+// StatusBar displays status information and keybindings at the bottom of the screen.
+// It shows a status message on the left and keybinding hints on the right, with
+// automatic truncation when the terminal is narrow.
+//
+// Visual styling changes based on focus state:
+//   - Focused: Inverted colors (black on white)
+//   - Unfocused: Dimmed text
+//
+// Example usage:
+//
+//	statusBar := tui.NewStatusBar()
+//	statusBar.SetMessage("Processing...")
+//	// Later: statusBar.SetMessage("Complete!")
 type StatusBar struct {
 	width   int
 	message string
 	focused bool
 }
 
-// NewStatusBar creates a new status bar
+// NewStatusBar creates a new status bar with the default message "Ready".
 func NewStatusBar() *StatusBar {
 	return &StatusBar{
 		message: "Ready",
@@ -35,7 +47,9 @@ func (s *StatusBar) Update(msg tea.Msg) (Component, tea.Cmd) {
 	return s, nil
 }
 
-// View renders the status bar
+// View renders the status bar as a single line with the status message on the left
+// and keybinding hints on the right. The message is automatically truncated with "..."
+// if the terminal is too narrow. Returns an empty string if width is zero.
 func (s *StatusBar) View() string {
 	if s.width == 0 {
 		return ""
@@ -82,7 +96,9 @@ func (s *StatusBar) Focused() bool {
 	return s.focused
 }
 
-// SetMessage updates the status message
+// SetMessage updates the status message displayed on the left side of the status bar.
+// The message will be automatically truncated with "..." if the terminal is too narrow
+// to display both the message and keybinding hints.
 func (s *StatusBar) SetMessage(msg string) {
 	s.message = msg
 }

@@ -99,6 +99,22 @@ func (a *Application) AddComponent(c Component) {
 	}
 }
 
+// FocusComponent focuses a specific component by index, blurring the currently focused one
+func (a *Application) FocusComponent(index int) {
+	if index < 0 || index >= len(a.components) {
+		return
+	}
+
+	// Blur current
+	if a.focused >= 0 && a.focused < len(a.components) {
+		a.components[a.focused].Blur()
+	}
+
+	// Focus new
+	a.focused = index
+	a.components[index].Focus()
+}
+
 // Init initializes the application
 func (a *Application) Init() tea.Cmd {
 	var cmds []tea.Cmd

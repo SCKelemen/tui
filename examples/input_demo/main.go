@@ -86,6 +86,10 @@ func newModel() model {
 	})
 	app.AddComponent(textInput)
 
+	// IMPORTANT: Focus the text input so user can type
+	// (By default, first component added gets focus, which is activityBar)
+	app.FocusComponent(2) // Index 2 is textInput (0=activityBar, 1=commandPalette, 2=textInput)
+
 	return model{
 		app:            app,
 		textInput:      textInput,

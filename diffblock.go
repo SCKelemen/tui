@@ -222,14 +222,15 @@ func (db *DiffBlock) View() string {
 	}
 	b.WriteString("\n")
 
-	// Summary line
-	if db.summary != "" {
-		b.WriteString(fmt.Sprintf("  \033[2m⎿  %s\033[0m\n", db.summary))
-	}
-
-	// Diff stats
+	// Summary line with stats
 	added, removed := db.countChanges()
-	b.WriteString(fmt.Sprintf("  \033[2m⎿  \033[32m+%d\033[0m \033[31m-%d\033[0m\n", added, removed))
+	if db.summary != "" {
+		// Custom summary provided
+		b.WriteString(fmt.Sprintf("  \033[2m⎿  %s\033[0m\n", db.summary))
+	} else {
+		// Auto-generate summary: "Added N lines, removed N lines"
+		b.WriteString(fmt.Sprintf("  \033[2m⎿  Added %d lines, removed %d lines\033[0m\n", added, removed))
+	}
 
 	// Diff lines
 	if db.expanded {
@@ -289,17 +290,42 @@ func (db *DiffBlock) countChanges() (added, removed int) {
 	return
 }
 
-// renderCollapsed shows a summary of changes
+// renderCollapsed shows first few changes with context
 func (db *DiffBlock) renderCollapsed() string {
 	var b strings.Builder
 
-	// Show first few changes as preview
+	// Show first few changes with surrounding context
 	shownLines := 0
-	maxPreview := 8
+	maxPreview := 15 // Show more lines to include context
 
-	for _, line := range db.lines {
+	// Track whether we've shown a change yet
+	hasChanges := false
+
+	for i, line := range db.lines {
+		// Show context before/after changes
 		if line.Type == DiffUnchanged {
-			continue // Skip unchanged lines in collapsed view
+			// Only show context if we're near a change
+			showContext := false
+
+			// Check if there's a change within N lines
+			contextWindow := 2
+			for j := i - contextWindow; j <= i+contextWindow; j++ {
+				if j >= 0 && j < len(db.lines) && db.lines[j].Type != DiffUnchanged {
+					showContext = true
+					break
+				}
+			}
+
+			if !showContext && hasChanges {
+				// We've moved past the changes, stop
+				break
+			}
+
+			if !showContext {
+				continue
+			}
+		} else {
+			hasChanges = true
 		}
 
 		if shownLines >= maxPreview {
@@ -310,11 +336,10 @@ func (db *DiffBlock) renderCollapsed() string {
 		shownLines++
 	}
 
-	// Show expansion hint
-	totalChanges, _ := db.countChanges()
-	if totalChanges > shownLines {
-		remaining := totalChanges - shownLines
-		b.WriteString(fmt.Sprintf("     \033[2m… +%d more changes (\033[3mctrl+o to expand\033[0m\033[2m)\033[0m\n", remaining))
+	// Show expansion hint if there are more lines
+	if len(db.lines) > shownLines {
+		remaining := len(db.lines) - shownLines
+		b.WriteString(fmt.Sprintf("     \033[2m… +%d more lines (\033[3mctrl+o to expand\033[0m\033[2m)\033[0m\n", remaining))
 	}
 
 	return b.String()
@@ -342,19 +367,22 @@ func (db *DiffBlock) renderExpanded() string {
 	return b.String()
 }
 
-// renderDiffLine renders a single diff line with appropriate styling
+// renderDiffLine renders a single diff line with line numbers (unified diff format)
 func (db *DiffBlock) renderDiffLine(line DiffLine) string {
+	// Line number format: right-aligned, 6 chars wide total
+	lineNumStr := fmt.Sprintf("%6d", line.LineNum)
+
 	switch line.Type {
 	case DiffAdded:
-		// Green + prefix
-		return fmt.Sprintf("  \033[32m+ %s\033[0m\n", line.Content)
+		// Green + with line number: "    22 +    content"
+		return fmt.Sprintf("  %s \033[32m+%s\033[0m\n", lineNumStr, line.Content)
 	case DiffRemoved:
-		// Red - prefix
-		return fmt.Sprintf("  \033[31m- %s\033[0m\n", line.Content)
+		// Red - with line number: "    22 -    content"
+		return fmt.Sprintf("  %s \033[31m-%s\033[0m\n", lineNumStr, line.Content)
 	case DiffUnchanged:
-		// Dimmed, no prefix
-		return fmt.Sprintf("  \033[2m  %s\033[0m\n", line.Content)
+		// No prefix, just line number: "    22     content"
+		return fmt.Sprintf("  %s  %s\n", lineNumStr, line.Content)
 	default:
-		return fmt.Sprintf("    %s\n", line.Content)
+		return fmt.Sprintf("        %s\n", line.Content)
 	}
 }

@@ -74,7 +74,7 @@ func SelectionRange(filename string, line, char int) (*core.SelectionRange, erro
 	diffBlock := tui.NewDiffBlockFromStrings(oldCode, newCode,
 		tui.WithDiffFilename("processor.go"),
 		tui.WithDiffOperation("Edit"),
-		tui.WithDiffSummary("Updated error handling and changed normalization"),
+		// No custom summary - will auto-generate "Added N lines, removed N lines"
 		tui.WithDiffExpanded(false),
 	)
 

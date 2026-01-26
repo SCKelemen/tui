@@ -13,11 +13,11 @@ A comprehensive Terminal User Interface framework for building Claude Code-like 
 - **📊 Data Visualization**: StatCards with change indicators (↑↓→), trend graphs, and detailed modal views
 - **🎯 Focus Management**: Intuitive focus flow with visual states (focused, selected, normal)
 - **📏 Responsive Layouts**: Auto-adjusting grids that adapt to terminal size
-- **🧪 Battle-Tested**: 354 tests with 82.9% coverage
+- **🧪 Battle-Tested**: 446 tests with 83.9% coverage
 
 ## Features
 
-- **Rich Components**: Dashboards, file explorers, command palettes, status bars, modals
+- **Rich Components**: Dashboards, file explorers, command palettes, status bars, modals, code blocks, diffs, confirmations
 - **Keyboard Navigation**: Arrow keys + vim bindings (hjkl) with customizable keymaps
 - **Mouse Support**: Click, scroll, drag interactions
 - **Focus Management**: Visual focus indicators with three states (focused/selected/normal)
@@ -171,6 +171,15 @@ Top bar with title, breadcrumbs, and navigation.
 ### StructuredData
 Formatted JSON/data display with syntax highlighting.
 
+### CodeBlock
+Collapsible code display with syntax highlighting, line numbers, and operation indicators (Write, Read, Edit).
+
+### DiffBlock
+Unified diff viewer with +/- indicators, line numbers, and expand/collapse functionality.
+
+### ConfirmationBlock
+File operation prompts with code preview, multiple choice options, and keyboard navigation.
+
 See [COMPONENTS.md](COMPONENTS.md) for detailed documentation on all components.
 
 ## Status & Roadmap
@@ -190,7 +199,10 @@ See [COMPONENTS.md](COMPONENTS.md) for detailed documentation on all components.
 - [x] TextInput fields
 - [x] Header component
 - [x] StructuredData display
-- [x] Comprehensive test coverage (354 tests, 82.9%)
+- [x] CodeBlock for syntax-highlighted code display
+- [x] DiffBlock for unified diff viewing
+- [x] ConfirmationBlock for file operation prompts
+- [x] Comprehensive test coverage (446 tests, 83.9%)
 
 ### 🚧 In Progress
 - [ ] Theme customization and dark/light modes
@@ -207,18 +219,21 @@ See [COMPONENTS.md](COMPONENTS.md) for detailed documentation on all components.
 
 The library has comprehensive test coverage:
 
-- **354 total tests** across all components
-- **82.9% code coverage**
-- **93.75% component coverage** (15 of 16 files)
+- **446 total tests** across all components
+- **83.9% code coverage**
+- **100% component coverage** (16 of 16 files tested)
 - Tests for: creation, rendering, updates, focus management, keyboard navigation, edge cases
 
 Run tests:
 ```bash
-go test ./...                    # Run all tests
-go test -v -run TestDashboard   # Dashboard tests
-go test -v -run TestStatCard    # StatCard tests
-go test -v -run TestDetailModal # Modal tests
-go test -cover ./...            # With coverage report
+go test ./...                         # Run all tests
+go test -v -run TestDashboard        # Dashboard tests
+go test -v -run TestStatCard         # StatCard tests
+go test -v -run TestDetailModal      # Modal tests
+go test -v -run TestCodeBlock        # CodeBlock tests
+go test -v -run TestDiffBlock        # DiffBlock tests
+go test -v -run TestConfirmationBlock # ConfirmationBlock tests
+go test -cover ./...                 # With coverage report
 ```
 
 ## License

@@ -20,8 +20,22 @@ examples/*/streaming_demo_output
 examples/*/kitchen_sink
 examples/*/kitchen_sink_inline
 examples/*/layout_demo
+examples/*/code_demo
+examples/*/confirmation_demo
+examples/*/diff_example
+examples/*/dashboard_demo
+examples/*/header_demo
+examples/*/header_demo_preview
+examples/*/spinner_showcase
+examples/*/thinking_spinner_demo
+examples/*/structureddata_demo
+examples/*/structureddata_animation_demo
 fileexplorer_demo
 modal_demo
+code_demo
+confirmation_demo
+diff_example
+dashboard_demo
 
 # Test binaries
 *.test

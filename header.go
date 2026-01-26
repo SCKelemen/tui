@@ -4,10 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/SCKelemen/cli/renderer"
-	"github.com/SCKelemen/color"
 	design "github.com/SCKelemen/design-system"
-	"github.com/SCKelemen/layout"
 )
 
 // ColumnAlign defines how content is aligned within a column
@@ -103,14 +100,12 @@ func (h *Header) Update(msg tea.Msg) (Component, tea.Cmd) {
 	return h, nil
 }
 
-// View renders the header using layout system
+// View renders the header
 func (h *Header) View() string {
 	if h.width == 0 || len(h.columns) == 0 {
 		return ""
 	}
 
-	// Fallback: use simple string rendering for now to avoid breaking things
-	// TODO: Implement full layout-based rendering
 	return h.renderSimple()
 }
 
@@ -342,61 +337,4 @@ func (h *Header) alignContent(content string, width int, align ColumnAlign) stri
 	}
 
 	return content
-}
-
-// renderWithLayout renders using the full layout system (work in progress)
-func (h *Header) renderWithLayout() string {
-	// Create layout context
-	ctx := layout.NewLayoutContext(float64(h.width), float64(h.height), 16)
-
-	// Create root flexbox container
-	root := &layout.Node{
-		Style: layout.Style{
-			Display:       layout.DisplayFlex,
-			FlexDirection: layout.FlexDirectionRow,
-			Width:         layout.Px(float64(h.width)),
-			AlignItems:    layout.AlignItemsStretch,
-			Padding: layout.Spacing{
-				Top:    layout.Ch(0.5),
-				Bottom: layout.Ch(0.5),
-				Left:   layout.Ch(1),
-				Right:  layout.Ch(1),
-			},
-		},
-	}
-
-	// Add columns with flex-grow
-	for _, col := range h.columns {
-		colNode := &layout.Node{
-			Style: layout.Style{
-				FlexGrow: float64(col.Width),
-			},
-		}
-
-		if col.Width <= 0 {
-			colNode.Style.FlexGrow = 1
-		}
-
-		root.Children = append(root.Children, colNode)
-	}
-
-	// Perform layout
-	constraints := layout.Tight(float64(h.width), float64(h.height))
-	layout.Layout(root, constraints, ctx)
-
-	// Convert to styled nodes
-	textColorRGBA, _ := color.HexToRGB(h.tokens.Color)
-	var textColor color.Color = textColorRGBA
-
-	rootStyled := renderer.NewStyledNode(root, &renderer.Style{
-		Foreground: &textColor,
-	})
-
-	// TODO: Build content for each column child node
-
-	// Render to screen
-	screen := renderer.NewScreen(h.width, 10)
-	screen.Render(rootStyled)
-
-	return screen.String()
 }

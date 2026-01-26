@@ -168,8 +168,12 @@ func (fe *FileExplorer) View() string {
 		// Tree lines
 		var connector string
 		if depth > 0 {
-			connector = "├─ "
-			// TODO: Use └─ for last child
+			// Use └─ for last child, ├─ otherwise
+			if fe.isLastChild(node) {
+				connector = "└─ "
+			} else {
+				connector = "├─ "
+			}
 		}
 
 		// Icon
@@ -428,4 +432,19 @@ func (fe *FileExplorer) getDepth(node *FileNode) int {
 		return depth - 1
 	}
 	return 0
+}
+
+// isLastChild returns true if the node is the last child of its parent
+func (fe *FileExplorer) isLastChild(node *FileNode) bool {
+	if node.Parent == nil {
+		return false
+	}
+
+	parent := node.Parent
+	if len(parent.Children) == 0 {
+		return false
+	}
+
+	// Check if this node is the last child
+	return parent.Children[len(parent.Children)-1] == node
 }

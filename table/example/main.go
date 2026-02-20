@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Table Example ===\n")
+	fmt.Print("=== Table Example ===\n")
 
 	// Example 1: Service status table (default rounded borders)
 	fmt.Println("1. Service Status (Rounded borders):")

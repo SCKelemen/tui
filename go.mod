@@ -37,10 +37,3 @@ require (
 	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 )
-
-// Local development replacements for unpublished modules
-replace (
-	github.com/SCKelemen/cli => ../cli
-	github.com/SCKelemen/text => ../text
-	github.com/SCKelemen/wpt-test-gen => ../wpt-test-gen
-)

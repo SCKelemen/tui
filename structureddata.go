@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -55,6 +56,11 @@ type StructuredData struct {
 	status         DataStatus // Current status (Running, Success, Error, Info)
 	animationFrame int        // Frame counter for blinking animation
 	runningColor   string     // ANSI color code for running status (default: white)
+	successColor   string     // ANSI color code for success status
+	errorColor     string     // ANSI color code for error status
+	warningColor   string     // ANSI color code for warning status
+	infoColor      string     // ANSI color code for info status
+	noneColor      string     // ANSI color code for neutral status
 	spinner        Spinner    // Spinner animation
 	iconSet        IconSet    // Icon set for different statuses
 }
@@ -64,12 +70,17 @@ func NewStructuredData(title string, opts ...StructuredDataOption) *StructuredDa
 	sd := &StructuredData{
 		title:        title,
 		items:        []DataItem{},
-		expanded:     true,                // Default to expanded
-		icon:         "⏺",                 // Deprecated fallback
-		keyWidth:     0,                   // Auto-calculate
-		runningColor: "\033[37m",          // Default to white
-		spinner:      SpinnerBlink,        // Default spinner
-		iconSet:      IconSetDefault,      // Default icon set
+		expanded:     true,           // Default to expanded
+		icon:         "⏺",            // Deprecated fallback
+		keyWidth:     0,              // Auto-calculate
+		runningColor: "\033[37m",     // Default to white
+		successColor: "\033[32m",     // Green
+		errorColor:   "\033[31m",     // Red
+		warningColor: "\033[33m",     // Yellow
+		infoColor:    "\033[37m",     // White
+		noneColor:    "\033[36m",     // Cyan
+		spinner:      SpinnerBlink,   // Default spinner
+		iconSet:      IconSetDefault, // Default icon set
 	}
 
 	for _, opt := range opts {
@@ -121,6 +132,21 @@ func WithSpinner(spinner Spinner) StructuredDataOption {
 func WithIconSet(iconSet IconSet) StructuredDataOption {
 	return func(sd *StructuredData) {
 		sd.iconSet = iconSet
+	}
+}
+
+// WithStructuredDataDesignTokens applies design-system colors to status rendering.
+func WithStructuredDataDesignTokens(tokens *design.DesignTokens) StructuredDataOption {
+	return func(sd *StructuredData) {
+		sd.applyDesignTokens(tokens)
+	}
+}
+
+// WithStructuredDataTheme applies a named design-system theme.
+// Supported names: default, midnight, nord, paper, wrapped.
+func WithStructuredDataTheme(theme string) StructuredDataOption {
+	return func(sd *StructuredData) {
+		sd.applyDesignTokens(designTokensForTheme(theme))
 	}
 }
 
@@ -450,19 +476,39 @@ func (sd *StructuredData) renderIcon() string {
 		return sd.runningColor + frame + "\033[0m"
 
 	case DataStatusSuccess:
-		return "\033[32m" + sd.iconSet.Success + "\033[0m" // Green
+		return sd.successColor + sd.iconSet.Success + "\033[0m"
 
 	case DataStatusError:
-		return "\033[31m" + sd.iconSet.Error + "\033[0m" // Red
+		return sd.errorColor + sd.iconSet.Error + "\033[0m"
 
 	case DataStatusWarning:
-		return "\033[33m" + sd.iconSet.Warning + "\033[0m" // Yellow
+		return sd.warningColor + sd.iconSet.Warning + "\033[0m"
 
 	case DataStatusInfo:
-		return "\033[37m" + sd.iconSet.Info + "\033[0m" // White
+		return sd.infoColor + sd.iconSet.Info + "\033[0m"
 
 	default: // DataStatusNone
-		return "\033[36m" + sd.iconSet.None + "\033[0m" // Default cyan
+		return sd.noneColor + sd.iconSet.None + "\033[0m"
+	}
+}
+
+func (sd *StructuredData) applyDesignTokens(tokens *design.DesignTokens) {
+	if tokens == nil {
+		return
+	}
+
+	accent := ansiColorFromHex(tokens.Accent)
+	foreground := ansiColorFromHex(tokens.Color)
+
+	if accent != "" {
+		sd.runningColor = accent
+		sd.successColor = accent
+		sd.warningColor = accent
+		sd.noneColor = accent
+	}
+	if foreground != "" {
+		sd.errorColor = foreground
+		sd.infoColor = foreground
 	}
 }
 

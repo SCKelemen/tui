@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	design "github.com/SCKelemen/design-system"
 	"github.com/SCKelemen/tui"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type tickMsg time.Time
@@ -31,14 +33,30 @@ type model struct {
 	quitting        bool
 }
 
-func initialModel() model {
+func initialModel(theme string) model {
+	themeLabel := strings.ToLower(strings.TrimSpace(theme))
+	if themeLabel == "" {
+		themeLabel = "codex"
+	}
+
+	iconSet := tui.IconSetCodex
+	modelA := "codex-mini"
+	modelB := "codex-pro"
+	designTheme := design.MidnightTheme()
+	if themeLabel == "claude" {
+		iconSet = tui.IconSetClaude
+		modelA = "claude-haiku"
+		modelB = "claude-sonnet"
+		designTheme = design.DefaultTheme()
+	}
+
 	// Header
 	header := tui.NewHeader(
 		tui.WithColumns(
 			tui.HeaderColumn{
 				Width:   20,
 				Align:   tui.AlignLeft,
-				Content: []string{"🎨 Kitchen Sink", "Inline Mode"},
+				Content: []string{"🎨 Kitchen Sink", "Inline " + strings.ToUpper(themeLabel)},
 			},
 			tui.HeaderColumn{
 				Width:   30,
@@ -54,26 +72,32 @@ func initialModel() model {
 	)
 
 	// Activity bar
-	activityBar := tui.NewActivityBar()
+	activityBar := tui.NewActivityBar(
+		tui.WithActivityBarDesignTokens(designTheme),
+	)
 
 	// Status bar
-	statusBar := tui.NewStatusBar()
-	statusBar.SetMessage("Press 'r' to run activity | 's' to stop | 'q' to quit")
+	statusBar := tui.NewStatusBar(
+		tui.WithStatusBarDesignTokens(designTheme),
+	)
+	statusBar.SetMessage("Press 'r' run | 's' stop | 'q' quit | --theme=codex|claude")
 
 	// StructuredData with different configurations
 	sd1 := tui.NewStructuredData("Cost Summary",
 		tui.WithSpinner(tui.SpinnerThinking),
-		tui.WithIconSet(tui.IconSetClaude))
+		tui.WithIconSet(iconSet),
+		tui.WithStructuredDataDesignTokens(designTheme))
 	sd1.AddRow("Total cost", "$122.25")
 	sd1.AddRow("Duration", "6h 10m 48s")
 	sd1.AddSeparator()
 	sd1.AddHeader("Usage by model")
-	sd1.AddIndentedRow("claude-haiku", "$1.61", 1)
-	sd1.AddIndentedRow("claude-sonnet", "$120.63", 1)
+	sd1.AddIndentedRow(modelA, "$1.61", 1)
+	sd1.AddIndentedRow(modelB, "$120.63", 1)
 
 	sd2 := tui.NewStructuredData("System Info",
 		tui.WithSpinner(tui.SpinnerDots),
-		tui.WithIconSet(tui.IconSetSymbols))
+		tui.WithIconSet(tui.IconSetSymbols),
+		tui.WithStructuredDataDesignTokens(designTheme))
 	sd2.AddRow("OS", "macOS 14.2.1")
 	sd2.AddRow("Arch", "arm64")
 	sd2.AddRow("CPU", "Apple M2 Pro")
@@ -82,6 +106,7 @@ func initialModel() model {
 	sd3 := tui.NewStructuredData("Test Results",
 		tui.WithSpinner(tui.SpinnerPulse),
 		tui.WithIconSet(tui.IconSetEmoji),
+		tui.WithStructuredDataDesignTokens(designTheme),
 		tui.WithStructuredDataMaxLines(3))
 	sd3.AddColoredRow("Total", "228", "\033[32m")
 	sd3.AddColoredRow("Passed", "228", "\033[32m")
@@ -89,7 +114,13 @@ func initialModel() model {
 	sd3.AddRow("Duration", "11.64s")
 
 	// ToolBlocks
-	tb1 := tui.NewToolBlock("Bash", "go test -v", []string{}, tui.WithMaxLines(5))
+	tb1 := tui.NewToolBlock(
+		"Bash",
+		"go test -v",
+		[]string{},
+		tui.WithMaxLines(5),
+		tui.WithToolBlockDesignTokens(designTheme),
+	)
 	tb1.AppendLine("=== RUN   TestStructuredData")
 	tb1.AppendLine("--- PASS: TestStructuredData (0.00s)")
 	tb1.AppendLine("=== RUN   TestSpinner")
@@ -98,7 +129,12 @@ func initialModel() model {
 	tb1.AppendLine("ok  	github.com/SCKelemen/tui	11.64s")
 	tb1.SetStatus(tui.StatusComplete)
 
-	tb2 := tui.NewToolBlock("Bash", "git status", []string{})
+	tb2 := tui.NewToolBlock(
+		"Bash",
+		"git status",
+		[]string{},
+		tui.WithToolBlockDesignTokens(designTheme),
+	)
 	tb2.AppendLine("On branch main")
 	tb2.AppendLine("Your branch is up to date with 'origin/main'.")
 	tb2.AppendLine("")
@@ -287,7 +323,17 @@ func (m model) View() string {
 
 func main() {
 	// NO tea.WithAltScreen() - content flows naturally in terminal
-	p := tea.NewProgram(initialModel())
+	theme := "codex"
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--theme=") {
+			value := strings.ToLower(strings.TrimPrefix(arg, "--theme="))
+			if value == "claude" || value == "codex" {
+				theme = value
+			}
+		}
+	}
+
+	p := tea.NewProgram(initialModel(theme))
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)

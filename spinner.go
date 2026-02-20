@@ -22,10 +22,16 @@ var (
 		Frames: []string{"◴", "◷", "◶", "◵"},
 	}
 
-	// SpinnerThinking - Claude Code's thinking animation (small to large)
+	// SpinnerThinking - Codex/Claude-style thinking animation (small to large)
 	SpinnerThinking = Spinner{
 		Frames: []string{".", "+", "*", "÷", "•"},
 	}
+
+	// SpinnerCodexThinking - Codex CLI style thinking animation.
+	SpinnerCodexThinking = SpinnerThinking
+
+	// SpinnerClaudeThinking - Backward-compatible alias for SpinnerThinking.
+	SpinnerClaudeThinking = SpinnerThinking
 
 	// SpinnerBlink - Simple blink (on/off)
 	SpinnerBlink = Spinner{
@@ -135,14 +141,24 @@ var (
 		None:    "·",
 	}
 
-	// IconSetClaude - Claude Code style
-	IconSetClaude = IconSet{
+	// IconSetCodex - Codex CLI style
+	IconSetCodex = IconSet{
 		Running: "⏺",
 		Success: "✓",
 		Error:   "✗",
 		Warning: "⚠",
 		Info:    "⏺",
 		None:    "⏺",
+	}
+
+	// IconSetClaude - Backward-compatible alias for IconSetCodex.
+	IconSetClaude = IconSet{
+		Running: IconSetCodex.Running,
+		Success: IconSetCodex.Success,
+		Error:   IconSetCodex.Error,
+		Warning: IconSetCodex.Warning,
+		Info:    IconSetCodex.Info,
+		None:    IconSetCodex.None,
 	}
 )
 

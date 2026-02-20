@@ -5,20 +5,42 @@ import (
 	"strings"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ActivityBar displays an animated status line with spinner, elapsed time, and progress
 type ActivityBar struct {
-	width      int
-	message    string
-	active     bool
-	startTime  time.Time
-	elapsed    time.Duration
-	spinner    int
-	focused    bool
-	progress   string // e.g., "↓ 2.5k tokens"
-	cancelable bool
+	width         int
+	message       string
+	active        bool
+	startTime     time.Time
+	elapsed       time.Duration
+	spinner       int
+	focused       bool
+	progress      string // e.g., "↓ 2.5k tokens"
+	cancelable    bool
+	inactiveColor string
+	activeColor   string
+	hintColor     string
+	progressColor string
+}
+
+// ActivityBarOption configures an ActivityBar.
+type ActivityBarOption func(*ActivityBar)
+
+// WithActivityBarDesignTokens applies design-system colors to the activity bar.
+func WithActivityBarDesignTokens(tokens *design.DesignTokens) ActivityBarOption {
+	return func(a *ActivityBar) {
+		a.applyDesignTokens(tokens)
+	}
+}
+
+// WithActivityBarTheme applies a named design-system theme.
+func WithActivityBarTheme(theme string) ActivityBarOption {
+	return func(a *ActivityBar) {
+		a.applyDesignTokens(designTokensForTheme(theme))
+	}
 }
 
 // activityBarTickMsg is sent periodically to update the spinner and timer
@@ -27,11 +49,21 @@ type activityBarTickMsg time.Time
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // NewActivityBar creates a new activity bar
-func NewActivityBar() *ActivityBar {
-	return &ActivityBar{
-		message:    "Ready",
-		cancelable: true,
+func NewActivityBar(opts ...ActivityBarOption) *ActivityBar {
+	a := &ActivityBar{
+		message:       "Ready",
+		cancelable:    true,
+		inactiveColor: "\033[2m",
+		activeColor:   "\033[1;36m",
+		hintColor:     "\033[2m",
+		progressColor: "\033[36m",
 	}
+
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	return a
 }
 
 // Init initializes the activity bar
@@ -68,7 +100,7 @@ func (a *ActivityBar) View() string {
 
 	if !a.active {
 		// Inactive state - simple message
-		return fmt.Sprintf("\033[2m%s\033[0m\n", a.message)
+		return fmt.Sprintf("%s%s\033[0m\n", a.inactiveColor, a.message)
 	}
 
 	// Active state - animated spinner
@@ -76,14 +108,14 @@ func (a *ActivityBar) View() string {
 
 	// Spinner + message
 	spinner := spinnerFrames[a.spinner]
-	parts = append(parts, fmt.Sprintf("\033[1;36m%s\033[0m %s", spinner, a.message))
+	parts = append(parts, fmt.Sprintf("%s%s\033[0m %s", a.activeColor, spinner, a.message))
 
 	// Build status info
 	var status []string
 
 	// Cancelable hint
 	if a.cancelable {
-		status = append(status, "\033[2mesc to interrupt\033[0m")
+		status = append(status, a.hintColor+"esc to interrupt"+"\033[0m")
 	}
 
 	// Elapsed time
@@ -93,11 +125,11 @@ func (a *ActivityBar) View() string {
 
 	// Progress indicator
 	if a.progress != "" {
-		status = append(status, fmt.Sprintf("\033[36m%s\033[0m", a.progress))
+		status = append(status, fmt.Sprintf("%s%s\033[0m", a.progressColor, a.progress))
 	}
 
 	if len(status) > 0 {
-		parts = append(parts, fmt.Sprintf("(\033[2m%s\033[0m)", strings.Join(status, " · ")))
+		parts = append(parts, fmt.Sprintf("(%s%s\033[0m)", a.hintColor, strings.Join(status, " · ")))
 	}
 
 	line := strings.Join(parts, " ")
@@ -163,6 +195,23 @@ func (a *ActivityBar) formatDuration(d time.Duration) string {
 	minutes := seconds / 60
 	seconds = seconds % 60
 	return fmt.Sprintf("%dm %ds", minutes, seconds)
+}
+
+func (a *ActivityBar) applyDesignTokens(tokens *design.DesignTokens) {
+	if tokens == nil {
+		return
+	}
+	accent := ansiColorFromHex(tokens.Accent)
+	foreground := ansiColorFromHex(tokens.Color)
+
+	if accent != "" {
+		a.activeColor = accent
+		a.progressColor = accent
+	}
+	if foreground != "" {
+		a.inactiveColor = foreground
+		a.hintColor = foreground
+	}
 }
 
 // stripANSI removes ANSI escape codes (reused from border_components.go logic)

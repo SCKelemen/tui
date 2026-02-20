@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	design "github.com/SCKelemen/design-system"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -21,16 +22,43 @@ import (
 //	statusBar.SetMessage("Processing...")
 //	// Later: statusBar.SetMessage("Complete!")
 type StatusBar struct {
-	width   int
-	message string
-	focused bool
+	width     int
+	message   string
+	focused   bool
+	textColor string
+	hintColor string
+}
+
+// StatusBarOption configures a StatusBar.
+type StatusBarOption func(*StatusBar)
+
+// WithStatusBarDesignTokens applies design-system colors to the status bar.
+func WithStatusBarDesignTokens(tokens *design.DesignTokens) StatusBarOption {
+	return func(s *StatusBar) {
+		s.applyDesignTokens(tokens)
+	}
+}
+
+// WithStatusBarTheme applies a named design-system theme.
+func WithStatusBarTheme(theme string) StatusBarOption {
+	return func(s *StatusBar) {
+		s.applyDesignTokens(designTokensForTheme(theme))
+	}
 }
 
 // NewStatusBar creates a new status bar with the default message "Ready".
-func NewStatusBar() *StatusBar {
-	return &StatusBar{
-		message: "Ready",
+func NewStatusBar(opts ...StatusBarOption) *StatusBar {
+	s := &StatusBar{
+		message:   "Ready",
+		textColor: "\033[2m",
+		hintColor: "\033[2m",
 	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // Init initializes the status bar
@@ -59,15 +87,19 @@ func (s *StatusBar) View() string {
 	left := s.message
 
 	// Keybindings on the right
-	right := "Tab: Focus • q: Quit"
+	right := s.hintColor + "Tab: Focus • q: Quit\033[0m"
 
 	// Calculate spacing
-	spacing := s.width - len(left) - len(right)
+	spacing := s.width - len(left) - len(stripANSI(right))
 	if spacing < 0 {
 		spacing = 0
 		// Truncate left message if needed
-		if len(left) > s.width-len(right)-3 {
-			left = left[:s.width-len(right)-3] + "..."
+		maxLeft := s.width - len(stripANSI(right)) - 3
+		if maxLeft < 0 {
+			maxLeft = 0
+		}
+		if len(left) > maxLeft {
+			left = left[:maxLeft] + "..."
 		}
 	}
 
@@ -78,7 +110,7 @@ func (s *StatusBar) View() string {
 	if s.focused {
 		return fmt.Sprintf("\033[7m%s\033[0m\n", line) // Inverted colors when focused
 	}
-	return fmt.Sprintf("\033[2m%s\033[0m\n", line) // Dimmed when not focused
+	return fmt.Sprintf("%s%s\033[0m\n", s.textColor, line)
 }
 
 // Focus is called when this component receives focus
@@ -101,4 +133,18 @@ func (s *StatusBar) Focused() bool {
 // to display both the message and keybinding hints.
 func (s *StatusBar) SetMessage(msg string) {
 	s.message = msg
+}
+
+func (s *StatusBar) applyDesignTokens(tokens *design.DesignTokens) {
+	if tokens == nil {
+		return
+	}
+	foreground := ansiColorFromHex(tokens.Color)
+	accent := ansiColorFromHex(tokens.Accent)
+	if foreground != "" {
+		s.textColor = foreground
+	}
+	if accent != "" {
+		s.hintColor = accent
+	}
 }

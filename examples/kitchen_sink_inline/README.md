@@ -1,6 +1,6 @@
 # Kitchen Sink Inline Mode
 
-This demo showcases TUI components in **inline/history mode**, where content persists in your terminal after the program exits (like Claude Code).
+This demo showcases TUI components in **inline/history mode**, where content persists in your terminal after the program exits (like Codex CLI).
 
 ## Key Differences from Standard Kitchen Sink
 
@@ -22,6 +22,7 @@ This demo showcases TUI components in **inline/history mode**, where content per
 
 ```bash
 go run main.go
+go run main.go --theme=claude
 ```
 
 The demo will:

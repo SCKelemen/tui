@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	design "github.com/SCKelemen/design-system"
 	"github.com/SCKelemen/tui"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type tickMsg time.Time
@@ -14,19 +17,35 @@ type model struct {
 	sd     *tui.StructuredData
 	width  int
 	height int
+	theme  string
 }
 
-func initialModel() model {
-	// Create with Claude's thinking spinner
-	sd := tui.NewStructuredData("Claude is thinking",
-		tui.WithSpinner(tui.SpinnerThinking),
-		tui.WithIconSet(tui.IconSetClaude))
+func initialModel(theme string) model {
+	theme = strings.ToLower(strings.TrimSpace(theme))
+	if theme == "" {
+		theme = "codex"
+	}
+
+	title := "Codex is thinking"
+	iconSet := tui.IconSetCodex
+	themeTokens := design.MidnightTheme()
+	if theme == "claude" {
+		title = "Claude is thinking"
+		iconSet = tui.IconSetClaude
+		themeTokens = design.DefaultTheme()
+	}
+
+	sd := tui.NewStructuredData(title,
+		tui.WithSpinner(tui.SpinnerCodexThinking),
+		tui.WithIconSet(iconSet),
+		tui.WithStructuredDataDesignTokens(themeTokens))
 
 	sd.AddRow("Analyzing", "Your request...")
 	sd.AddRow("Status", "Processing")
 
 	return model{
-		sd: sd,
+		sd:    sd,
+		theme: theme,
 	}
 }
 
@@ -86,7 +105,11 @@ func (m model) View() string {
 		return "Loading..."
 	}
 
-	s := "\n=== Claude's Thinking Spinner Demo ===\n\n"
+	label := "Codex"
+	if m.theme == "claude" {
+		label = "Claude"
+	}
+	s := "\n=== " + label + " Thinking Spinner Demo ===\n\n"
 	s += "Watch the thinking animation: . * ÷ + •\n\n"
 	s += m.sd.View() + "\n\n"
 	s += "Press:\n"
@@ -100,7 +123,17 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel())
+	theme := "codex"
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--theme=") {
+			value := strings.ToLower(strings.TrimPrefix(arg, "--theme="))
+			if value == "claude" || value == "codex" {
+				theme = value
+			}
+		}
+	}
+
+	p := tea.NewProgram(initialModel(theme))
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)
 	}

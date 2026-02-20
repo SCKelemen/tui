@@ -20,7 +20,7 @@ type demoModel struct {
 
 func newDemoModel() demoModel {
 	app := tui.NewApplication()
-	tokens := design.DefaultTheme()
+	tokens := design.MidnightTheme()
 
 	// Activity bar at the top
 	activityBar := tui.NewActivityBar(tui.WithActivityBarDesignTokens(tokens))
@@ -116,7 +116,7 @@ func newDemoModel() demoModel {
 func (m demoModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.app.Init(),
-		m.activityBar.Start("Actualizing…"),
+		m.activityBar.Start("Analyzing…"),
 		tickCmd(),
 	)
 }

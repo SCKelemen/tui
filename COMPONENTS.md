@@ -1,6 +1,6 @@
 # TUI Components
 
-Claude Code-inspired components for building sophisticated terminal UIs.
+Codex CLI-inspired components for building sophisticated terminal UIs.
 
 ## Available Components
 
@@ -14,6 +14,10 @@ Animated status line with spinner, elapsed time, and progress indicators.
 - Progress indicators (e.g., "↓ 2.5k tokens")
 - Cancelable with Esc key
 - Automatic color themes
+
+**Options:**
+- `WithActivityBarDesignTokens(tokens)` - Apply theme colors from `design-system`
+- `WithActivityBarTheme(name)` - Apply named theme (`default`, `midnight`, `nord`, `paper`, `wrapped`)
 
 **Example:**
 ```go
@@ -51,6 +55,8 @@ Collapsible content blocks for displaying tool execution results with real-time 
 - `WithMaxLines(n)` - Limit visible lines when collapsed
 - `WithStreaming()` - Enable streaming mode with running status
 - `WithStatus(status)` - Set initial status (StatusComplete, StatusError, StatusWarning, StatusRunning)
+- `WithToolBlockDesignTokens(tokens)` - Apply theme colors from `design-system`
+- `WithToolBlockTheme(name)` - Apply named theme (`default`, `midnight`, `nord`, `paper`, `wrapped`)
 
 **Example:**
 ```go
@@ -161,6 +167,10 @@ Simple status bar with message and keybindings.
 - Right-aligned keybinding hints
 - Visual feedback when focused (inverted colors)
 - Auto-truncation for narrow terminals
+
+**Options:**
+- `WithStatusBarDesignTokens(tokens)` - Apply theme colors from `design-system`
+- `WithStatusBarTheme(name)` - Apply named theme (`default`, `midnight`, `nord`, `paper`, `wrapped`)
 
 **Example:**
 ```go
@@ -565,8 +575,8 @@ sd := tui.NewStructuredData("Session Summary").
     AddRow("Total duration", "6h 10m 48s").
     AddSeparator().
     AddHeader("Usage by model").
-    AddIndentedRow("claude-haiku", "797.2k input", 1).
-    AddIndentedRow("claude-sonnet", "970.4k output", 1)
+    AddIndentedRow("codex-mini", "797.2k input", 1).
+    AddIndentedRow("codex-pro", "970.4k output", 1)
 
 // Or use helper functions
 sd := tui.FromKeyValuePairs("Config",
@@ -592,6 +602,8 @@ sd := tui.FromKeyValuePairs("Config",
 - `WithRunningColor(color)` - ANSI color code for running status (default: white "\033[37m")
 - `WithSpinner(spinner)` - Spinner animation (default: SpinnerBlink)
 - `WithIconSet(iconSet)` - Icon set for status indicators (default: IconSetDefault)
+- `WithStructuredDataDesignTokens(tokens)` - Apply theme colors from `design-system`
+- `WithStructuredDataTheme(name)` - Apply named theme (`default`, `midnight`, `nord`, `paper`, `wrapped`)
 
 **Animated Spinners & Status Icons:**
 
@@ -603,7 +615,7 @@ sd := tui.NewStructuredData("Task", tui.WithSpinner(tui.SpinnerThinking))
 sd := tui.NewStructuredData("Task", tui.WithSpinner(tui.SpinnerDots))
 
 // Use different icon sets
-sd := tui.NewStructuredData("Task", tui.WithIconSet(tui.IconSetClaude))
+sd := tui.NewStructuredData("Task", tui.WithIconSet(tui.IconSetCodex))
 sd := tui.NewStructuredData("Task", tui.WithIconSet(tui.IconSetSymbols))
 
 // Start animation
@@ -618,13 +630,15 @@ sd.MarkInfo()     // White icon
 // Customize running color
 sd := tui.NewStructuredData("Task",
     tui.WithSpinner(tui.SpinnerThinking),
-    tui.WithIconSet(tui.IconSetClaude),
+    tui.WithIconSet(tui.IconSetCodex),
     tui.WithRunningColor("\033[36m"))
 ```
 
 **Available Spinners:**
 - `SpinnerBlink` - Simple blink on/off (default)
-- `SpinnerThinking` - Claude Code style (small to large): . + * ÷ •
+- `SpinnerThinking` - Codex CLI style (small to large): . + * ÷ •
+- `SpinnerCodexThinking` - Alias for `SpinnerThinking`
+- `SpinnerClaudeThinking` - Backward-compatible alias for `SpinnerThinking`
 - `SpinnerDots` - Braille dots (smooth): ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
 - `SpinnerLine` - Classic line: ─ \ | /
 - `SpinnerCircle` - Rotating circle: ◴◷◶◵
@@ -639,7 +653,8 @@ sd := tui.NewStructuredData("Task",
 
 **Available Icon Sets:**
 - `IconSetDefault` - All ⏺ (default)
-- `IconSetClaude` - Claude Code style: ⏺ ✓ ✗ ⚠ ⏺
+- `IconSetCodex` - Codex CLI style: ⏺ ✓ ✗ ⚠ ⏺
+- `IconSetClaude` - Backward-compatible alias for `IconSetCodex`
 - `IconSetSymbols` - Unicode symbols: ⏺ ✓ ✗ ⚠ ℹ
 - `IconSetEmoji` - Emoji: ⏺ ✅ ❌ ⚡ 💡
 - `IconSetCircles` - Circles: ○ ● ◯ ◐ ○
@@ -664,8 +679,8 @@ The animation runs at 500ms intervals and automatically stops when status change
      Total code changes:   26773 lines added, 2436 lines removed
 
      Usage by model
-       claude-haiku:       797.2k input, 65.9k output
-       claude-sonnet:      970.4k output, 189.5m cache read
+       codex-mini:       797.2k input, 65.9k output
+       codex-pro:      970.4k output, 189.5m cache read
 ```
 
 **Use Cases:**
@@ -776,12 +791,12 @@ type Component interface {
 go run examples/basic/main.go
 ```
 
-### Claude Code Style Demo
+### Codex CLI Style Demo
 ```bash
-go run examples/claude_demo_output/main.go
+go run examples/codex_code_demo/main.go
 ```
 
-### Interactive Demo
+### Claude Style Demo (Compatibility)
 ```bash
 go run examples/claude_code_demo/main.go
 ```

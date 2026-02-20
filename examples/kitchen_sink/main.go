@@ -6,27 +6,28 @@ import (
 	"strings"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
+	"github.com/SCKelemen/tui"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/SCKelemen/tui"
 )
 
 type tickMsg time.Time
 
 type model struct {
 	// Components gallery
-	header             *tui.Header
-	activityBar        *tui.ActivityBar
-	statusBar          *tui.StatusBar
-	structuredData1    *tui.StructuredData
-	structuredData2    *tui.StructuredData
-	structuredData3    *tui.StructuredData
-	toolBlock1         *tui.ToolBlock
-	toolBlock2         *tui.ToolBlock
-	textInput          *tui.TextInput
-	commandPalette     *tui.CommandPalette
-	fileExplorer       *tui.FileExplorer
-	modal              *tui.Modal
+	header          *tui.Header
+	activityBar     *tui.ActivityBar
+	statusBar       *tui.StatusBar
+	structuredData1 *tui.StructuredData
+	structuredData2 *tui.StructuredData
+	structuredData3 *tui.StructuredData
+	toolBlock1      *tui.ToolBlock
+	toolBlock2      *tui.ToolBlock
+	textInput       *tui.TextInput
+	commandPalette  *tui.CommandPalette
+	fileExplorer    *tui.FileExplorer
+	modal           *tui.Modal
 
 	// Viewport for scrolling
 	viewport viewport.Model
@@ -40,8 +41,23 @@ type model struct {
 	activityRunning bool
 }
 
-func initialModel() model {
+func initialModel(theme string) model {
 	cwd, _ := os.Getwd()
+	themeLabel := strings.ToLower(strings.TrimSpace(theme))
+	if themeLabel == "" {
+		themeLabel = "codex"
+	}
+
+	iconSet := tui.IconSetCodex
+	modelA := "codex-mini"
+	modelB := "codex-pro"
+	designTheme := design.MidnightTheme()
+	if themeLabel == "claude" {
+		iconSet = tui.IconSetClaude
+		modelA = "claude-haiku"
+		modelB = "claude-sonnet"
+		designTheme = design.DefaultTheme()
+	}
 
 	// Header with multiple sections
 	header := tui.NewHeader(
@@ -49,7 +65,7 @@ func initialModel() model {
 			tui.HeaderColumn{
 				Width:   20,
 				Align:   tui.AlignLeft,
-				Content: []string{"🎨 Kitchen Sink", "All Components"},
+				Content: []string{"🎨 Kitchen Sink", strings.ToUpper(themeLabel) + " Theme"},
 			},
 			tui.HeaderColumn{
 				Width:   30,
@@ -65,26 +81,32 @@ func initialModel() model {
 	)
 
 	// Activity bar
-	activityBar := tui.NewActivityBar()
+	activityBar := tui.NewActivityBar(
+		tui.WithActivityBarDesignTokens(designTheme),
+	)
 
 	// Status bar
-	statusBar := tui.NewStatusBar()
-	statusBar.SetMessage("Press 'q' to quit | 'm' for modal | 'p' for palette | 'r' to run activity")
+	statusBar := tui.NewStatusBar(
+		tui.WithStatusBarDesignTokens(designTheme),
+	)
+	statusBar.SetMessage("Press 'q' to quit | 'm' modal | 'p' palette | 'r' run | --theme=codex|claude")
 
 	// StructuredData with different configurations
 	sd1 := tui.NewStructuredData("Cost Summary",
 		tui.WithSpinner(tui.SpinnerThinking),
-		tui.WithIconSet(tui.IconSetClaude))
+		tui.WithIconSet(iconSet),
+		tui.WithStructuredDataDesignTokens(designTheme))
 	sd1.AddRow("Total cost", "$122.25")
 	sd1.AddRow("Duration", "6h 10m 48s")
 	sd1.AddSeparator()
 	sd1.AddHeader("Usage by model")
-	sd1.AddIndentedRow("claude-haiku", "$1.61", 1)
-	sd1.AddIndentedRow("claude-sonnet", "$120.63", 1)
+	sd1.AddIndentedRow(modelA, "$1.61", 1)
+	sd1.AddIndentedRow(modelB, "$120.63", 1)
 
 	sd2 := tui.NewStructuredData("System Info",
 		tui.WithSpinner(tui.SpinnerDots),
-		tui.WithIconSet(tui.IconSetSymbols))
+		tui.WithIconSet(tui.IconSetSymbols),
+		tui.WithStructuredDataDesignTokens(designTheme))
 	sd2.AddRow("OS", "macOS 14.2.1")
 	sd2.AddRow("Arch", "arm64")
 	sd2.AddRow("CPU", "Apple M2 Pro")
@@ -93,6 +115,7 @@ func initialModel() model {
 	sd3 := tui.NewStructuredData("Test Results",
 		tui.WithSpinner(tui.SpinnerPulse),
 		tui.WithIconSet(tui.IconSetEmoji),
+		tui.WithStructuredDataDesignTokens(designTheme),
 		tui.WithStructuredDataMaxLines(3))
 	sd3.AddColoredRow("Total", "228", "\033[32m")
 	sd3.AddColoredRow("Passed", "228", "\033[32m")
@@ -100,7 +123,13 @@ func initialModel() model {
 	sd3.AddRow("Duration", "11.64s")
 
 	// ToolBlocks
-	tb1 := tui.NewToolBlock("Bash", "go test -v", []string{}, tui.WithMaxLines(5))
+	tb1 := tui.NewToolBlock(
+		"Bash",
+		"go test -v",
+		[]string{},
+		tui.WithMaxLines(5),
+		tui.WithToolBlockDesignTokens(designTheme),
+	)
 	tb1.AppendLine("=== RUN   TestStructuredData")
 	tb1.AppendLine("--- PASS: TestStructuredData (0.00s)")
 	tb1.AppendLine("=== RUN   TestSpinner")
@@ -109,7 +138,12 @@ func initialModel() model {
 	tb1.AppendLine("ok  	github.com/SCKelemen/tui	11.64s")
 	tb1.SetStatus(tui.StatusComplete)
 
-	tb2 := tui.NewToolBlock("Bash", "git status", []string{})
+	tb2 := tui.NewToolBlock(
+		"Bash",
+		"git status",
+		[]string{},
+		tui.WithToolBlockDesignTokens(designTheme),
+	)
 	tb2.AppendLine("On branch main")
 	tb2.AppendLine("Your branch is up to date with 'origin/main'.")
 	tb2.AppendLine("")
@@ -490,8 +524,18 @@ func (m model) View() string {
 }
 
 func main() {
+	theme := "codex"
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--theme=") {
+			value := strings.ToLower(strings.TrimPrefix(arg, "--theme="))
+			if value == "claude" || value == "codex" {
+				theme = value
+			}
+		}
+	}
+
 	p := tea.NewProgram(
-		initialModel(),
+		initialModel(theme),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(), // Enable mouse support for scrolling
 	)

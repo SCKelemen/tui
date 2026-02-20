@@ -15,7 +15,7 @@ type model struct {
 }
 
 func newModel() model {
-	// Create header with two columns like Claude Code
+	// Create header with two columns like Codex CLI
 	header := tui.NewHeader(
 		tui.WithColumns(
 			// Left column: centered content

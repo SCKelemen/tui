@@ -72,7 +72,7 @@ func (m model) View() string {
 	}
 
 	var s string
-	s += "\033[1m╭─ Claude Code-Style Diff Display ────────────────────────────────╮\033[0m\n"
+	s += "\033[1m╭─ Codex CLI-Style Diff Display ────────────────────────────────╮\033[0m\n"
 	s += "\033[1m│\033[0m Press \033[33mctrl+o\033[0m or \033[33mspace\033[0m to toggle, \033[33mq\033[0m to quit                   \033[1m│\033[0m\n"
 	s += "\033[1m╰──────────────────────────────────────────────────────────────────╯\033[0m\n\n"
 

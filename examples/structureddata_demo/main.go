@@ -10,7 +10,7 @@ import (
 func main() {
 	fmt.Println("=== StructuredData Component Demo ===")
 
-	// Example 1: Cost Summary (like Claude Code's /cost command)
+	// Example 1: Cost Summary (like Codex CLI's /cost command)
 	fmt.Println("1. Cost Summary:")
 	cost := tui.NewStructuredData("Session Summary").
 		AddRow("Total cost", "$122.25").
@@ -19,8 +19,8 @@ func main() {
 		AddRow("Total code changes", "26773 lines added, 2436 lines removed").
 		AddSeparator().
 		AddHeader("Usage by model").
-		AddIndentedRow("claude-haiku", "797.2k input, 65.9k output, 1.9m cache read, 233.5k cache write ($1.61)", 1).
-		AddIndentedRow("claude-sonnet", "44.6k input, 970.4k output, 189.5m cache read, 13.1m cache write ($120.63)", 1)
+		AddIndentedRow("codex-mini", "797.2k input, 65.9k output, 1.9m cache read, 233.5k cache write ($1.61)", 1).
+		AddIndentedRow("codex-pro", "44.6k input, 970.4k output, 189.5m cache read, 13.1m cache write ($120.63)", 1)
 
 	cost.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	fmt.Println(cost.View())

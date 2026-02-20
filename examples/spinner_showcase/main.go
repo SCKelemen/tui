@@ -28,7 +28,7 @@ func initialModel() model {
 			AddRow("Style", "Braille dots (smooth)").
 			AddRow("Frames", "10"),
 		tui.NewStructuredData("SpinnerThinking", tui.WithSpinner(tui.SpinnerThinking)).
-			AddRow("Style", "Claude thinking animation").
+			AddRow("Style", "Codex thinking animation").
 			AddRow("Frames", ". * ÷ + •"),
 		tui.NewStructuredData("SpinnerLine", tui.WithSpinner(tui.SpinnerLine)).
 			AddRow("Style", "Classic line spinner").
@@ -50,7 +50,7 @@ func initialModel() model {
 			AddRow("Success", "⏺").
 			AddRow("Error", "⏺").
 			AddRow("Warning", "⏺"),
-		tui.NewStructuredData("IconSetClaude", tui.WithIconSet(tui.IconSetClaude)).
+		tui.NewStructuredData("IconSetCodex", tui.WithIconSet(tui.IconSetCodex)).
 			AddRow("Success", "✓").
 			AddRow("Error", "✗").
 			AddRow("Warning", "⚠"),

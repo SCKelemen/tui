@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -20,18 +21,22 @@ const (
 
 // ToolBlock represents a collapsible block showing tool execution results
 type ToolBlock struct {
-	width       int
-	toolName    string // e.g., "Bash", "Write", "Read"
-	command     string // e.g., "cd ~/Code && ls"
-	output      []string
-	expanded    bool
-	focused     bool
-	showLineNos bool // Show line numbers (for code files)
-	icon        string
-	maxLines    int // Max lines to show when collapsed (0 = show all)
-	status      ToolBlockStatus
-	spinner     int
-	streaming   bool // Enable streaming mode
+	width        int
+	toolName     string // e.g., "Bash", "Write", "Read"
+	command      string // e.g., "cd ~/Code && ls"
+	output       []string
+	expanded     bool
+	focused      bool
+	showLineNos  bool // Show line numbers (for code files)
+	icon         string
+	maxLines     int // Max lines to show when collapsed (0 = show all)
+	status       ToolBlockStatus
+	spinner      int
+	streaming    bool // Enable streaming mode
+	runningColor string
+	successColor string
+	errorColor   string
+	warningColor string
 }
 
 // ToolBlockOption configures a ToolBlock
@@ -66,16 +71,34 @@ func WithStatus(status ToolBlockStatus) ToolBlockOption {
 	}
 }
 
+// WithToolBlockDesignTokens applies design-system colors to status rendering.
+func WithToolBlockDesignTokens(tokens *design.DesignTokens) ToolBlockOption {
+	return func(tb *ToolBlock) {
+		tb.applyDesignTokens(tokens)
+	}
+}
+
+// WithToolBlockTheme applies a named design-system theme.
+func WithToolBlockTheme(theme string) ToolBlockOption {
+	return func(tb *ToolBlock) {
+		tb.applyDesignTokens(designTokensForTheme(theme))
+	}
+}
+
 // NewToolBlock creates a new tool block
 func NewToolBlock(toolName, command string, output []string, opts ...ToolBlockOption) *ToolBlock {
 	tb := &ToolBlock{
-		toolName: toolName,
-		command:  command,
-		output:   output,
-		expanded: false,
-		maxLines: 5, // Default: show first 5 lines when collapsed
-		icon:     getToolIcon(toolName),
-		status:   StatusComplete, // Default to complete
+		toolName:     toolName,
+		command:      command,
+		output:       output,
+		expanded:     false,
+		maxLines:     5, // Default: show first 5 lines when collapsed
+		icon:         getToolIcon(toolName),
+		status:       StatusComplete, // Default to complete
+		runningColor: "\033[36m",
+		successColor: "\033[32m",
+		errorColor:   "\033[31m",
+		warningColor: "\033[33m",
 	}
 
 	for _, opt := range opts {
@@ -237,13 +260,13 @@ func (tb *ToolBlock) SetExpanded(expanded bool) {
 // getToolIcon returns an icon for the tool type
 func getToolIcon(toolName string) string {
 	icons := map[string]string{
-		"Bash":   "⏺",
-		"Write":  "⏺",
-		"Read":   "⏺",
-		"Edit":   "⏺",
-		"Grep":   "⏺",
-		"Glob":   "⏺",
-		"Task":   "⏺",
+		"Bash":     "⏺",
+		"Write":    "⏺",
+		"Read":     "⏺",
+		"Edit":     "⏺",
+		"Grep":     "⏺",
+		"Glob":     "⏺",
+		"Task":     "⏺",
 		"WebFetch": "⏺",
 	}
 
@@ -268,13 +291,13 @@ func truncateString(s string, maxLen int) string {
 func (tb *ToolBlock) getStatusIndicator() (string, string) {
 	switch tb.status {
 	case StatusRunning:
-		return "", "\033[36m" // Cyan
+		return "", tb.runningColor
 	case StatusComplete:
-		return "\033[32m✓\033[0m", "\033[32m" // Green
+		return tb.successColor + "✓\033[0m", tb.successColor
 	case StatusError:
-		return "\033[31m✗\033[0m", "\033[31m" // Red
+		return tb.errorColor + "✗\033[0m", tb.errorColor
 	case StatusWarning:
-		return "\033[33m⚠\033[0m", "\033[33m" // Yellow
+		return tb.warningColor + "⚠\033[0m", tb.warningColor
 	default:
 		return "", "\033[0m"
 	}
@@ -317,6 +340,22 @@ func (tb *ToolBlock) StartStreaming() tea.Cmd {
 func (tb *ToolBlock) StopStreaming() {
 	tb.streaming = false
 	tb.status = StatusComplete
+}
+
+func (tb *ToolBlock) applyDesignTokens(tokens *design.DesignTokens) {
+	if tokens == nil {
+		return
+	}
+	accent := ansiColorFromHex(tokens.Accent)
+	foreground := ansiColorFromHex(tokens.Color)
+	if accent != "" {
+		tb.runningColor = accent
+		tb.successColor = accent
+		tb.warningColor = accent
+	}
+	if foreground != "" {
+		tb.errorColor = foreground
+	}
 }
 
 // StopStreamingWithError stops streaming and sets status to error

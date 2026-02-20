@@ -1,6 +1,6 @@
 # tui
 
-A comprehensive Terminal User Interface framework for building Claude Code-like CLI experiences with modern, interactive dashboard capabilities.
+A comprehensive Terminal User Interface framework for building Codex-like CLI experiences with modern, interactive dashboard capabilities.
 
 ## Overview
 

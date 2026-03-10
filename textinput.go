@@ -9,12 +9,12 @@ import (
 
 // TextInput is a multi-line text input component for user messages
 type TextInput struct {
-	width      int
-	height     int
-	textarea   textarea.Model
-	focused    bool
+	width       int
+	height      int
+	textarea    textarea.Model
+	focused     bool
 	placeholder string
-	onSubmit   func(string) tea.Cmd
+	onSubmit    func(string) tea.Cmd
 }
 
 // NewTextInput creates a new text input component
@@ -44,7 +44,11 @@ func (t *TextInput) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		t.width = msg.Width
-		t.textarea.SetWidth(msg.Width - 4) // Account for border
+		textareaWidth := msg.Width - 4 // Account for border
+		if textareaWidth < 1 {
+			textareaWidth = 1
+		}
+		t.textarea.SetWidth(textareaWidth)
 
 	case tea.KeyMsg:
 		if !t.focused {
@@ -80,7 +84,7 @@ func (t *TextInput) Update(msg tea.Msg) (Component, tea.Cmd) {
 
 // View renders the text input
 func (t *TextInput) View() string {
-	if t.width == 0 {
+	if t.width < 2 {
 		return ""
 	}
 

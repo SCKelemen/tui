@@ -28,19 +28,19 @@ type ModalButton struct {
 
 // Modal displays overlay dialogs for user interaction
 type Modal struct {
-	width      int
-	height     int
-	visible    bool
-	focused    bool
-	modalType  ModalType
-	title      string
-	message    string
-	buttons    []ModalButton
-	selected   int // Selected button index
-	textInput  textinput.Model
-	hasInput   bool
-	onConfirm  func(string) tea.Cmd
-	onCancel   func() tea.Cmd
+	width     int
+	height    int
+	visible   bool
+	focused   bool
+	modalType ModalType
+	title     string
+	message   string
+	buttons   []ModalButton
+	selected  int // Selected button index
+	textInput textinput.Model
+	hasInput  bool
+	onConfirm func(string) tea.Cmd
+	onCancel  func() tea.Cmd
 }
 
 // ModalOption configures a Modal
@@ -221,6 +221,9 @@ func (m *Modal) Update(msg tea.Msg) (Component, tea.Cmd) {
 // View renders the modal
 func (m *Modal) View() string {
 	if !m.visible || m.width == 0 {
+		return ""
+	}
+	if m.width < 6 {
 		return ""
 	}
 

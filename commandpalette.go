@@ -2,20 +2,26 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/junegunn/fzf/src/algo"
+	"github.com/junegunn/fzf/src/util"
 )
+
+var fzfInitOnce sync.Once
 
 // Command represents an executable command in the command palette with metadata
 // for display and categorization.
 type Command struct {
-	Name        string          // Display name of the command
-	Description string          // Brief description of what the command does
-	Category    string          // Category for grouping (e.g., "File", "Edit", "View")
-	Action      func() tea.Cmd  // Function to execute when command is selected
-	Keybinding  string          // Optional keyboard shortcut (e.g., "Ctrl+S")
+	Name        string         // Display name of the command
+	Description string         // Brief description of what the command does
+	Category    string         // Category for grouping (e.g., "File", "Edit", "View")
+	Action      func() tea.Cmd // Function to execute when command is selected
+	Keybinding  string         // Optional keyboard shortcut (e.g., "Ctrl+S")
 }
 
 // CommandPalette is a fuzzy-searchable command launcher inspired by VS Code's command
@@ -152,8 +158,11 @@ func (cp *CommandPalette) View() string {
 
 	// Calculate dimensions
 	paletteWidth := min(60, cp.width-4)
+	if paletteWidth < 20 {
+		paletteWidth = 20
+	}
 	paletteHeight := min(cp.maxVisible+4, cp.height-4)
-	startX := (cp.width - paletteWidth) / 2
+	startX := max(0, (cp.width-paletteWidth)/2)
 	startY := max(2, (cp.height-paletteHeight)/4)
 
 	// Create overlay background (dim the screen)
@@ -171,7 +180,11 @@ func (cp *CommandPalette) View() string {
 	padding := (paletteWidth - len(title)) / 2
 	b.WriteString(strings.Repeat(" ", padding))
 	b.WriteString(title)
-	b.WriteString(strings.Repeat(" ", paletteWidth-padding-len(title)))
+	rightPadding := paletteWidth - padding - len(title)
+	if rightPadding < 0 {
+		rightPadding = 0
+	}
+	b.WriteString(strings.Repeat(" ", rightPadding))
 	b.WriteString("\033[0m\n")
 
 	// Search input
@@ -184,7 +197,11 @@ func (cp *CommandPalette) View() string {
 	b.WriteString("\033[2m│\033[0m ")
 	inputView := cp.textInput.View()
 	b.WriteString(inputView)
-	b.WriteString(strings.Repeat(" ", paletteWidth-len(stripANSI(inputView))-4))
+	inputPadding := paletteWidth - len(stripANSI(inputView)) - 4
+	if inputPadding < 0 {
+		inputPadding = 0
+	}
+	b.WriteString(strings.Repeat(" ", inputPadding))
 	b.WriteString(" \033[2m│\033[0m\n")
 
 	b.WriteString(strings.Repeat(" ", startX))
@@ -204,7 +221,11 @@ func (cp *CommandPalette) View() string {
 		b.WriteString("\033[2m│\033[0m ")
 		noResults := "No commands found"
 		b.WriteString(noResults)
-		b.WriteString(strings.Repeat(" ", paletteWidth-len(noResults)-4))
+		noResultsPadding := paletteWidth - len(noResults) - 4
+		if noResultsPadding < 0 {
+			noResultsPadding = 0
+		}
+		b.WriteString(strings.Repeat(" ", noResultsPadding))
 		b.WriteString(" \033[2m│\033[0m\n")
 	} else {
 		for i, cmd := range visibleCommands {
@@ -227,7 +248,11 @@ func (cp *CommandPalette) View() string {
 
 				// Pad to width
 				currentLen := 33 + len(cmd.Keybinding)
-				b.WriteString(strings.Repeat(" ", paletteWidth-currentLen-3))
+				linePadding := paletteWidth - currentLen - 3
+				if linePadding < 0 {
+					linePadding = 0
+				}
+				b.WriteString(strings.Repeat(" ", linePadding))
 				b.WriteString("\033[0m\033[2m│\033[0m\n")
 			} else {
 				// Normal item
@@ -246,7 +271,11 @@ func (cp *CommandPalette) View() string {
 
 				// Pad to width
 				currentLen := 33 + len(cmd.Keybinding)
-				b.WriteString(strings.Repeat(" ", paletteWidth-currentLen-3))
+				linePadding := paletteWidth - currentLen - 3
+				if linePadding < 0 {
+					linePadding = 0
+				}
+				b.WriteString(strings.Repeat(" ", linePadding))
 				b.WriteString("\033[2m│\033[0m\n")
 			}
 		}
@@ -257,7 +286,11 @@ func (cp *CommandPalette) View() string {
 	b.WriteString("\033[2m└")
 	footer := fmt.Sprintf(" %d commands ", len(cp.filtered))
 	b.WriteString(footer)
-	b.WriteString(strings.Repeat("─", paletteWidth-len(footer)-2))
+	footerWidth := paletteWidth - len(footer) - 2
+	if footerWidth < 0 {
+		footerWidth = 0
+	}
+	b.WriteString(strings.Repeat("─", footerWidth))
 	b.WriteString("┘\033[0m\n")
 
 	return b.String()
@@ -308,18 +341,69 @@ func (cp *CommandPalette) filterCommands() {
 		cp.filtered = cp.commands
 		return
 	}
+	pattern := algo.NormalizeRunes([]rune(query))
 
-	var filtered []Command
+	type scoredCommand struct {
+		command Command
+		score   int
+	}
+
+	var scored []scoredCommand
 	for _, cmd := range cp.commands {
-		// Simple substring matching (could be improved with fuzzy search)
-		if strings.Contains(strings.ToLower(cmd.Name), query) ||
-			strings.Contains(strings.ToLower(cmd.Description), query) ||
-			strings.Contains(strings.ToLower(cmd.Category), query) {
-			filtered = append(filtered, cmd)
+		// fzf-style fuzzy scoring with field weighting.
+		bestScore := -1
+
+		if score, ok := fzfMatchScore(pattern, cmd.Name); ok {
+			bestScore = max(bestScore, score+40) // Prefer name matches strongly
+		}
+		if score, ok := fzfMatchScore(pattern, cmd.Description); ok {
+			bestScore = max(bestScore, score+10)
+		}
+		if score, ok := fzfMatchScore(pattern, cmd.Category); ok {
+			bestScore = max(bestScore, score)
+		}
+
+		if bestScore >= 0 {
+			scored = append(scored, scoredCommand{
+				command: cmd,
+				score:   bestScore,
+			})
 		}
 	}
 
+	sort.SliceStable(scored, func(i, j int) bool {
+		if scored[i].score == scored[j].score {
+			return strings.ToLower(scored[i].command.Name) < strings.ToLower(scored[j].command.Name)
+		}
+		return scored[i].score > scored[j].score
+	})
+
+	filtered := make([]Command, 0, len(scored))
+	for _, item := range scored {
+		filtered = append(filtered, item.command)
+	}
 	cp.filtered = filtered
+}
+
+// fzfMatchScore uses junegunn/fzf's FuzzyMatchV2 scoring.
+func fzfMatchScore(pattern []rune, candidate string) (int, bool) {
+	fzfInitOnce.Do(func() {
+		algo.Init("default")
+	})
+
+	if len(pattern) == 0 {
+		return 0, true
+	}
+	if candidate == "" {
+		return 0, false
+	}
+
+	chars := util.ToChars([]byte(candidate))
+	result, _ := algo.FuzzyMatchV2(false, true, true, &chars, pattern, false, nil)
+	if result.Start < 0 {
+		return 0, false
+	}
+	return result.Score, true
 }
 
 // Helper functions

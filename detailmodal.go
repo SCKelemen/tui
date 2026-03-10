@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	design "github.com/SCKelemen/design-system"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // DetailModal displays detailed information about a StatCard in a centered overlay modal.
@@ -137,6 +137,9 @@ func (m *DetailModal) Update(msg tea.Msg) (Component, tea.Cmd) {
 // height (minimum 20 lines), and centered both horizontally and vertically.
 func (m *DetailModal) View() string {
 	if !m.visible || m.width == 0 {
+		return ""
+	}
+	if m.width < 6 || m.height < 6 {
 		return ""
 	}
 

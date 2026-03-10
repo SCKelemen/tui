@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/SCKelemen/cli/renderer"
 	"github.com/SCKelemen/color"
 	design "github.com/SCKelemen/design-system"
 	"github.com/SCKelemen/layout"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // StatCard displays a single metric with title, value, change indicator, and optional
@@ -149,7 +149,7 @@ func (s *StatCard) Update(msg tea.Msg) (Component, tea.Cmd) {
 // indicator, and optional sparkline. The border style changes based on focus and
 // selection state. Returns an empty string if width is zero.
 func (s *StatCard) View() string {
-	if s.width == 0 {
+	if s.width < 2 || s.height < 2 {
 		return ""
 	}
 

@@ -215,8 +215,12 @@ func (tb *ToolBlock) View() string {
 		// Truncate long lines
 		displayLine := line
 		maxWidth := tb.width - len(stripANSI(prefix)) - 2
+		if maxWidth <= 0 {
+			lines = append(lines, prefix)
+			continue
+		}
 		if len(displayLine) > maxWidth {
-			displayLine = displayLine[:maxWidth-3] + "..."
+			displayLine = truncateString(displayLine, maxWidth)
 		}
 
 		lines = append(lines, prefix+displayLine)
@@ -278,6 +282,9 @@ func getToolIcon(toolName string) string {
 
 // truncateString truncates a string to a maximum length
 func truncateString(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
 	if len(s) <= maxLen {
 		return s
 	}

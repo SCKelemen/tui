@@ -77,13 +77,12 @@ func WithShowTimestamps(show bool) ConversationViewOption {
 	}
 }
 
-// WithAutoScroll controls auto-scroll behavior.
-func WithAutoScroll(auto bool) ConversationViewOption {
+// WithConversationAutoScroll controls auto-scroll behavior.
+func WithConversationAutoScroll(auto bool) ConversationViewOption {
 	return func(cv *ConversationView) {
 		cv.autoScroll = auto
 	}
 }
-
 // WithConversationMouseSelection controls mouse text selection behavior.
 func WithConversationMouseSelection(enabled bool) ConversationViewOption {
 	return func(cv *ConversationView) {

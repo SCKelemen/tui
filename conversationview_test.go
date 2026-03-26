@@ -140,9 +140,8 @@ func TestConversationViewTimestampDisplay(t *testing.T) {
 }
 
 func TestConversationViewAutoScrollOption(t *testing.T) {
-	cv := NewConversationView(WithAutoScroll(false))
+	cv := NewConversationView(WithConversationAutoScroll(false))
 	cv.Update(tea.WindowSizeMsg{Width: 40, Height: 6})
-
 	for i := 0; i < 4; i++ {
 		cv.AddMessage(Message{ID: string(rune('a' + i)), Role: RoleAssistant, Content: "line", Timestamp: time.Now()})
 	}

@@ -1,248 +1,374 @@
 # tui
 
-A comprehensive Terminal User Interface framework for building Codex-like CLI experiences with modern, interactive dashboard capabilities.
-
-## Overview
-
-`tui` is a production-ready framework built on top of the SCKelemen visualization stack, providing fully-tested, ready-to-use components for building sophisticated terminal applications with modern UX patterns.
-
-## ✨ Highlights
-
-- **🎨 Interactive Dashboards**: Responsive grid layouts with real-time metrics, sparklines, and drill-down modals
-- **⌨️  Keyboard Navigation**: Full arrow key + vim-style (hjkl) navigation with visual focus indicators
-- **📊 Data Visualization**: StatCards with change indicators (↑↓→), trend graphs, and detailed modal views
-- **🎯 Focus Management**: Intuitive focus flow with visual states (focused, selected, normal)
-- **📏 Responsive Layouts**: Auto-adjusting grids that adapt to terminal size
-- **🧪 Battle-Tested**: 446 tests with 83.9% coverage
-
-## Features
-
-- **Rich Components**: Dashboards, file explorers, command palettes, status bars, modals, code blocks, diffs, confirmations
-- **Keyboard Navigation**: Arrow keys + vim bindings (hjkl) with customizable keymaps
-- **Mouse Support**: Click, scroll, drag interactions
-- **Focus Management**: Visual focus indicators with three states (focused/selected/normal)
-- **Layout System**: CSS Grid and Flexbox layouts via `layout` package
-- **Theme Support**: Full design token integration via `design-system`
-- **Unicode Aware**: Proper handling of emoji, wide characters via `text`
-- **Color Science**: Perceptually uniform gradients via `color` (OKLCH)
-
-## Architecture
-
-```
-tui (high-level components)
- ├── cli (terminal rendering)
- ├── layout (flexbox/grid)
- ├── design-system (themes)
- ├── text (unicode width)
- └── color (OKLCH gradients)
-```
+Terminal UI component library built on Bubble Tea with design token theming.
 
 ## Installation
 
 ```bash
-go get github.com/SCKelemen/tui@latest
+go get github.com/SCKelemen/tui
 ```
 
-## Quick Start
+## Features
 
-### Interactive Dashboard Example
-
-```go
-package main
-
-import (
-    "github.com/SCKelemen/tui"
-    tea "github.com/charmbracelet/bubbletea"
-)
-
-type model struct {
-    dashboard *tui.Dashboard
-}
-
-func (m model) Init() tea.Cmd { return nil }
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch msg := msg.(type) {
-    case tea.WindowSizeMsg:
-        m.dashboard.Update(msg)
-    case tea.KeyMsg:
-        if msg.String() == "q" {
-            return m, tea.Quit
-        }
-        m.dashboard.Update(msg)
-    }
-    return m, nil
-}
-
-func (m model) View() string {
-    return m.dashboard.View()
-}
-
-func main() {
-    // Create stat cards
-    cpuCard := tui.NewStatCard(
-        tui.WithTitle("CPU Usage"),
-        tui.WithValue("42%"),
-        tui.WithChange(5, 13.5),
-        tui.WithTrend([]float64{35, 38, 40, 42, 45}),
-    )
-
-    memoryCard := tui.NewStatCard(
-        tui.WithTitle("Memory"),
-        tui.WithValue("8.2 GB"),
-        tui.WithSubtitle("of 16 GB total"),
-        tui.WithChange(-200, -2.4),
-    )
-
-    // Create responsive dashboard
-    dashboard := tui.NewDashboard(
-        tui.WithDashboardTitle("System Metrics"),
-        tui.WithResponsiveLayout(30),
-        tui.WithCards(cpuCard, memoryCard),
-    )
-    dashboard.Focus() // Enable keyboard navigation
-
-    p := tea.NewProgram(
-        model{dashboard: dashboard},
-        tea.WithAltScreen(),
-    )
-    if _, err := p.Run(); err != nil {
-        panic(err)
-    }
-}
-```
-
-**Features shown:**
-- ✅ Responsive grid layout
-- ✅ StatCards with values and trends
-- ✅ Change indicators (↑↓→)
-- ✅ Keyboard navigation (arrow keys/hjkl)
-- ✅ Focus management
-
-See [examples/dashboard_demo](examples/dashboard_demo/) for a complete example with real-time updates!
+- 25+ interactive components
+- Design token theming (5 built-in themes)
+- Mouse selection with OSC 52 clipboard
+- Flexbox layout integration
+- Keyboard-first with mouse support
 
 ## Components
 
-### 📊 Dashboard System (Interactive)
+### Layout
 
-**Dashboard** - Responsive grid container for metrics visualization
-- Keyboard navigation (←→↑↓ or hjkl)
-- Auto-adjusting column layout
-- Real-time updates
-- Focus management
+#### Application
+Container for composing `tui.Component` instances with focus cycling.
 
-**StatCard** - Individual metric cards with:
-- Title, value, subtitle
-- Change indicators (↑↓→) with color coding
-- Sparkline trends (▁▂▃▄▅▆▇█)
-- Visual focus states (focused/selected/normal)
-
-**DetailModal** - Drill-down view for detailed metrics
-- Large 8-line trend graphs
-- Statistics (min, max, avg)
-- Press Enter to open, ESC to close
-
-See [DASHBOARD.md](DASHBOARD.md) for complete documentation.
-
-### FileExplorer
-Tree view with navigation, search, and file operations.
-
-### CommandPalette
-Fuzzy-searchable command launcher with keyboard shortcuts.
-
-### StatusBar
-Bottom status bar with context-aware keybindings and focus indicators.
-
-### Modal
-Dialog boxes for confirmations, inputs, and detail views.
-
-### ActivityBar
-Animated status line with spinner, elapsed time, and progress.
-
-### ToolBlock
-Collapsible content blocks for tool execution results with streaming support.
-
-### TextInput
-Text input fields with validation and keyboard controls.
-
-### Header
-Top bar with title, breadcrumbs, and navigation.
-
-### StructuredData
-Formatted JSON/data display with syntax highlighting.
-
-### CodeBlock
-Collapsible code display with syntax highlighting, line numbers, and operation indicators (Write, Read, Edit).
-
-### DiffBlock
-Unified diff viewer with +/- indicators, line numbers, and expand/collapse functionality.
-
-### ConfirmationBlock
-File operation prompts with code preview, multiple choice options, and keyboard navigation.
-
-See [COMPONENTS.md](COMPONENTS.md) for detailed documentation on all components.
-
-## Status & Roadmap
-
-### ✅ Completed
-- [x] Interactive Dashboard system with keyboard navigation
-- [x] StatCard component with sparklines and change indicators
-- [x] DetailModal for drill-down views
-- [x] Focus management with visual states
-- [x] FileExplorer component
-- [x] StatusBar component
-- [x] CommandPalette component
-- [x] Keyboard navigation (arrow keys + vim bindings)
-- [x] ActivityBar with spinner animations
-- [x] ToolBlock with streaming support
-- [x] Modal dialogs
-- [x] TextInput fields
-- [x] Header component
-- [x] StructuredData display
-- [x] CodeBlock for syntax-highlighted code display
-- [x] DiffBlock for unified diff viewing
-- [x] ConfirmationBlock for file operation prompts
-- [x] Comprehensive test coverage (446 tests, 83.9%)
-
-### 🚧 In Progress
-- [ ] Theme customization and dark/light modes
-- [ ] Mouse event handling improvements
-- [ ] Additional chart types (bar, pie, gauge)
-
-### 📋 Planned
-- [ ] Window splitting and panes
-- [ ] Plugin system
-- [ ] Animation system
-- [ ] More visualization components
-
-## Testing
-
-The library has comprehensive test coverage:
-
-- **446 total tests** across all components
-- **83.9% code coverage**
-- **100% component coverage** (16 of 16 files tested)
-- Tests for: creation, rendering, updates, focus management, keyboard navigation, edge cases
-
-Run tests:
-```bash
-go test ./...                         # Run all tests
-go test -v -run TestDashboard        # Dashboard tests
-go test -v -run TestStatCard         # StatCard tests
-go test -v -run TestDetailModal      # Modal tests
-go test -v -run TestCodeBlock        # CodeBlock tests
-go test -v -run TestDiffBlock        # DiffBlock tests
-go test -v -run TestConfirmationBlock # ConfirmationBlock tests
-go test -cover ./...                 # With coverage report
+```go
+app := tui.NewApplication()
+app.AddComponent(tui.NewStatusBar())
+app.AddComponent(tui.NewActivityBar())
 ```
+
+#### SplitPane
+Two-pane layout with keyboard-driven focus and resize controls.
+
+```go
+split := tui.NewSplitPane(
+    tui.WithLeftComponent(tui.NewFileExplorer(".")),
+    tui.WithRightComponent(tui.NewConversationView()),
+)
+```
+
+#### ScrollContainer
+Planned standalone container; today, scrolling is built into components like `ConversationView`, `FileExplorer`, and `ThreadProgress`.
+
+```go
+cv := tui.NewConversationView()
+cv.AddMessage(tui.Message{Role: tui.RoleAssistant, Content: "Hello"})
+cv.ScrollToBottom()
+```
+
+#### Dashboard
+Responsive metric grid for `StatCard` components with drill-down support.
+
+```go
+d := tui.NewDashboard(
+    tui.WithDashboardTitle("System Metrics"),
+    tui.WithCards(tui.NewStatCard(tui.WithTitle("CPU"))),
+)
+```
+
+#### LayoutHelper
+Helper for common `github.com/SCKelemen/layout` node patterns.
+
+```go
+helper := tui.NewLayoutHelper()
+root := helper.TwoColumnLayout(1, 2)
+_ = root
+```
+
+#### Header
+Multi-column header with sections and alignment.
+
+```go
+h := tui.NewHeader(tui.WithColumns(
+    tui.HeaderColumn{Align: tui.AlignLeft, Content: []string{"Project"}},
+    tui.HeaderColumn{Align: tui.AlignRight, Content: []string{"main"}},
+))
+```
+
+### Data Display
+
+#### StatCard
+Compact metric card with value, trend, and change indicators.
+
+```go
+card := tui.NewStatCard(
+    tui.WithTitle("Requests"),
+    tui.WithValue("12.4k"),
+    tui.WithChange(220, 1.8),
+)
+```
+
+#### StructuredData
+Tree-like key/value renderer with status and spinner support.
+
+```go
+sd := tui.NewStructuredData("Run")
+sd.AddRow("Status", "Running").AddRow("Duration", "14s")
+sd.MarkInfo()
+```
+
+#### Table
+Static CLI table renderer (subpackage: `tui/table`).
+
+```go
+tbl := table.New("Name", "Status")
+tbl.AddRow("api", "ready")
+fmt.Println(tbl.Render())
+```
+
+#### CodeBlock
+Collapsible code view with optional mouse selection and copy.
+
+```go
+cb := tui.NewCodeBlock(
+    tui.WithCodeFilename("main.go"),
+    tui.WithCode("package main\nfunc main() {}"),
+)
+```
+
+#### DiffBlock
+Unified diff renderer with expand/collapse and selection support.
+
+```go
+db := tui.NewDiffBlockFromStrings("a\n", "a\nb\n",
+    tui.WithDiffFilename("notes.txt"),
+    tui.WithDiffSummary("Add one line"),
+)
+```
+
+### Navigation
+
+#### TabBar
+Keyboard-driven tab strip with optional close behavior.
+
+```go
+tabs := tui.NewTabBar(tui.WithTabs(
+    tui.Tab{ID: "one", Label: "Overview"},
+    tui.Tab{ID: "two", Label: "Logs"},
+))
+```
+
+#### Breadcrumb
+Navigable path component with overflow truncation.
+
+```go
+bc := tui.NewBreadcrumb(tui.WithBreadcrumbItems(
+    tui.BreadcrumbItem{ID: "root", Label: "workspace"},
+    tui.BreadcrumbItem{ID: "repo", Label: "tui"},
+))
+```
+
+#### CommandPalette
+Fuzzy-search command launcher for keyboard-first workflows.
+
+```go
+cp := tui.NewCommandPalette([]tui.Command{{
+    Name: "Refresh", Category: "View", Action: func() tea.Cmd { return nil },
+}})
+cp.Show()
+```
+
+#### FileExplorer
+Tree file browser with expand/collapse and hidden file toggle.
+
+```go
+fe := tui.NewFileExplorer(".", tui.WithShowHidden(false))
+_ = fe.GetSelectedPath()
+fe.Focus()
+```
+
+### Input
+
+#### TextInput
+Multi-line textarea input with submit and clear shortcuts.
+
+```go
+ti := tui.NewTextInput()
+ti.OnSubmit(func(s string) tea.Cmd { return nil })
+ti.Focus()
+```
+
+#### Modal
+Overlay dialog for alert, confirm, and input workflows.
+
+```go
+m := tui.NewModal(tui.WithModalTitle("Confirm"))
+m.ShowConfirm("Delete", "Delete file?", func() tea.Cmd { return nil }, nil)
+m.Focus()
+```
+
+#### ConfirmationBlock
+Inline confirmation prompt with code preview and choice list.
+
+```go
+confirm := tui.NewConfirmationBlock(
+    tui.WithConfirmDescription("Write config file"),
+    tui.WithConfirmOptions([]string{"Yes", "No"}),
+)
+```
+
+#### Checklist
+Interactive checklist with nested items and status icons.
+
+```go
+cl := tui.NewChecklist(tui.WithChecklistItems(
+    tui.ChecklistItem{ID: "1", Label: "Run tests"},
+    tui.ChecklistItem{ID: "2", Label: "Update docs"},
+))
+```
+
+### Feedback
+
+#### ActivityBar
+Animated status line with elapsed time and progress hint.
+
+```go
+ab := tui.NewActivityBar()
+ab.Start("Deploying…")
+ab.SetProgress("step 2/4")
+```
+
+#### StatusBar
+Bottom status row for state and keybinding hints.
+
+```go
+sb := tui.NewStatusBar()
+sb.SetMessage("Ready")
+sb.Focus()
+```
+
+#### Toast
+Stacked auto-dismiss notifications.
+
+```go
+toast := tui.NewToast()
+toast.PushSuccess("Saved")
+toast.PushWarning("Low disk space")
+```
+
+#### ToolBlock
+Collapsible tool output block with streaming status support.
+
+```go
+tb := tui.NewToolBlock("Bash", "go test ./...", nil, tui.WithStreaming())
+tb.AppendLine("ok  ./pkg")
+tb.SetStatus(tui.StatusComplete)
+```
+
+#### ThreadProgress
+Concurrent task/thread progress view with per-thread output.
+
+```go
+tp := tui.NewThreadProgress()
+tp.UpsertThread("lint", "Lint", tui.ThreadRunning)
+tp.AppendOutput("lint", "running staticcheck")
+```
+
+### Communication
+
+#### ConversationView
+Scrollable transcript view with roles, timestamps, and streaming.
+
+```go
+cv := tui.NewConversationView()
+cv.AddMessage(tui.Message{Role: tui.RoleUser, Content: "Summarize tests"})
+cv.AddMessage(tui.Message{Role: tui.RoleAssistant, Content: "All green"})
+```
+
+### Utilities
+
+#### Spinner
+Prebuilt animation frame sets for running states.
+
+```go
+frame := tui.SpinnerDots.GetFrame(0)
+count := tui.SpinnerThinking.FrameCount()
+_, _ = frame, count
+```
+
+#### IconSet
+Status icon families for components that render state.
+
+```go
+icons := tui.IconSetCodex
+fmt.Println(icons.Success, icons.Error)
+```
+
+#### SelectionManager
+Mouse-based text selection helper used by render components.
+
+```go
+sm := tui.NewSelectionManager()
+sm.SetOffset(0, 0)
+_ = sm.HasSelection()
+```
+
+#### Clipboard (OSC 52)
+Terminal clipboard support via OSC 52 escape sequences.
+
+```go
+cmd := tui.WriteClipboard("copied from tui")
+_ = cmd
+_ = tui.WriteClipboardTarget("primary", tui.ClipboardPrimary)
+```
+
+## Theming
+
+`tui` uses `github.com/SCKelemen/design-system` tokens. You can provide tokens directly or use named theme options where supported.
+
+```go
+tokens := design.DefaultTheme()
+midnight := design.MidnightTheme()
+nord := design.NordTheme()
+paper := design.PaperTheme()
+wrapped := design.WrappedTheme()
+```
+
+Example applying tokens to components:
+
+```go
+status := tui.NewStatusBar(tui.WithStatusBarDesignTokens(tokens))
+activity := tui.NewActivityBar(tui.WithActivityBarDesignTokens(midnight))
+threads := tui.NewThreadProgress(tui.WithThreadProgressDesignTokens(nord))
+```
+
+Example applying a named theme directly:
+
+```go
+sd := tui.NewStructuredData("Plan", tui.WithStructuredDataTheme("paper"))
+tool := tui.NewToolBlock("Read", "README.md", nil, tui.WithToolBlockTheme("wrapped"))
+_ = sd
+_ = tool
+```
+
+## Mouse Selection
+
+Mouse selection is available on text-heavy components and copies via OSC 52.
+
+- `WithCodeBlockMouseSelection(true)`
+- `WithDiffBlockMouseSelection(true)`
+- `WithConversationMouseSelection(true)`
+
+When a selection exists:
+- `Ctrl+C` copies selected text
+- `y` copies selected text when the component is focused
+- clipboard write uses `WriteClipboard` / `WriteClipboardTarget` (OSC 52)
+
+```go
+cb := tui.NewCodeBlock(
+    tui.WithCode("line1\nline2"),
+    tui.WithCodeBlockMouseSelection(true),
+)
+_ = cb
+```
+
+## Dependencies
+
+SCKelemen stack dependencies in this module:
+
+- `github.com/SCKelemen/cli`
+- `github.com/SCKelemen/color`
+- `github.com/SCKelemen/design-system`
+- `github.com/SCKelemen/layout`
+- `github.com/SCKelemen/text`
+
+Additional SCKelemen modules used indirectly:
+
+- `github.com/SCKelemen/unicode`
+- `github.com/SCKelemen/units`
 
 ## License
 
 Bearware 1.0
-
-## Related Projects
-
-- [cli](https://github.com/SCKelemen/cli) - Low-level terminal rendering
-- [layout](https://github.com/SCKelemen/layout) - CSS-like layout engine
-- [design-system](https://github.com/SCKelemen/design-system) - Design tokens and themes
-- [dataviz](https://github.com/SCKelemen/dataviz) - Data visualization components

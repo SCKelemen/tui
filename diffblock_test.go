@@ -540,3 +540,32 @@ func TestDiffBlockLineNumbering(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffBlockMouseSelectionOption(t *testing.T) {
+	db := NewDiffBlock(
+		WithDiffBlockMouseSelection(true),
+	)
+
+	if !db.mouseSelection {
+		t.Error("Expected mouseSelection=true")
+	}
+
+	db = NewDiffBlock(
+		WithDiffBlockMouseSelection(false),
+	)
+	if db.mouseSelection {
+		t.Error("Expected mouseSelection=false")
+	}
+}
+
+func TestDiffBlockGetSelectionManager(t *testing.T) {
+	db := NewDiffBlock()
+
+	if db.GetSelectionManager() == nil {
+		t.Fatal("Expected selection manager to be initialized")
+	}
+
+	if db.GetSelectionManager() != db.selMgr {
+		t.Error("GetSelectionManager should return the underlying selection manager")
+	}
+}

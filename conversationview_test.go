@@ -168,3 +168,27 @@ func TestConversationViewMessageLimit(t *testing.T) {
 		t.Fatalf("expected oldest message to be dropped, got IDs %q and %q", msgs[0].ID, msgs[1].ID)
 	}
 }
+
+func TestConversationViewMouseSelectionOption(t *testing.T) {
+	disabled := NewConversationView()
+	if disabled.mouseSelectionEnabled {
+		t.Fatal("mouse selection should be disabled by default")
+	}
+
+	enabled := NewConversationView(WithConversationMouseSelection(true))
+	if !enabled.mouseSelectionEnabled {
+		t.Fatal("mouse selection should be enabled by option")
+	}
+}
+
+func TestConversationViewGetSelectionManager(t *testing.T) {
+	cv := NewConversationView()
+
+	selMgr := cv.GetSelectionManager()
+	if selMgr == nil {
+		t.Fatal("expected non-nil selection manager")
+	}
+	if selMgr != cv.selMgr {
+		t.Fatal("expected accessor to return internal selection manager")
+	}
+}

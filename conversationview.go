@@ -32,22 +32,23 @@ type conversationTickMsg struct{}
 
 // ConversationView renders a scrollable transcript.
 type ConversationView struct {
-	messages       []Message
-	focused        bool
-	scrollOffset   int
-	autoScroll     bool
-	designTokens   *design.DesignTokens
-	spinner        Spinner
-	spinIdx        int
-	showTimestamps bool
-	width          int
-	height         int
-	maxMessages    int
+	messages              []Message
+	focused               bool
+	scrollOffset          int
+	autoScroll            bool
+	designTokens          *design.DesignTokens
+	spinner               Spinner
+	spinIdx               int
+	showTimestamps        bool
+	width                 int
+	height                int
+	maxMessages           int
+	selMgr                *SelectionManager
+	mouseSelectionEnabled bool
 }
 
 // ConversationViewOption configures a ConversationView.
 type ConversationViewOption func(*ConversationView)
-
 // WithConversationDesignTokens applies design-system tokens.
 func WithConversationDesignTokens(tokens *design.DesignTokens) ConversationViewOption {
 	return func(cv *ConversationView) {
@@ -83,6 +84,13 @@ func WithAutoScroll(auto bool) ConversationViewOption {
 	}
 }
 
+// WithConversationMouseSelection controls mouse text selection behavior.
+func WithConversationMouseSelection(enabled bool) ConversationViewOption {
+	return func(cv *ConversationView) {
+		cv.mouseSelectionEnabled = enabled
+	}
+}
+
 // WithMaxMessages limits retained messages (0 means unlimited).
 func WithMaxMessages(max int) ConversationViewOption {
 	return func(cv *ConversationView) {
@@ -92,7 +100,6 @@ func WithMaxMessages(max int) ConversationViewOption {
 		cv.maxMessages = max
 	}
 }
-
 // NewConversationView creates a conversation component.
 func NewConversationView(opts ...ConversationViewOption) *ConversationView {
 	cv := &ConversationView{
@@ -100,8 +107,8 @@ func NewConversationView(opts ...ConversationViewOption) *ConversationView {
 		autoScroll:     true,
 		spinner:        SpinnerThinking,
 		showTimestamps: true,
+		selMgr:         NewSelectionManager(),
 	}
-
 	for _, opt := range opts {
 		opt(cv)
 	}
@@ -128,9 +135,22 @@ func (cv *ConversationView) Update(msg tea.Msg) (Component, tea.Cmd) {
 		}
 		return cv, cv.tick()
 
+	case tea.MouseMsg:
+		if cv.mouseSelectionEnabled && cv.selMgr != nil {
+			cv.selMgr.HandleMouse(msg)
+		}
+
 	case tea.KeyMsg:
+		if cv.mouseSelectionEnabled && cv.selMgr != nil && cv.selMgr.HasSelection() && msg.String() == "ctrl+c" {
+			return cv, cv.selMgr.CopySelection()
+		}
+
 		if !cv.focused {
 			return cv, nil
+		}
+
+		if cv.mouseSelectionEnabled && cv.selMgr != nil && cv.selMgr.HasSelection() && msg.String() == "y" {
+			return cv, cv.selMgr.CopySelection()
 		}
 
 		switch msg.String() {
@@ -151,16 +171,22 @@ func (cv *ConversationView) Update(msg tea.Msg) (Component, tea.Cmd) {
 
 	return cv, nil
 }
-
 // View renders the conversation.
 func (cv *ConversationView) View() string {
 	if cv.width == 0 {
 		return ""
 	}
 
-	lines := cv.renderLines()
+	lines, region := cv.renderLines(false)
 	if len(lines) == 0 {
 		return ""
+	}
+
+	if cv.mouseSelectionEnabled && cv.selMgr != nil {
+		cv.selMgr.SetRegion(region)
+		if cv.selMgr.HasSelection() {
+			lines, _ = cv.renderLines(true)
+		}
 	}
 
 	if cv.height <= 0 || len(lines) <= cv.height {
@@ -178,7 +204,6 @@ func (cv *ConversationView) View() string {
 
 	return strings.Join(lines[cv.scrollOffset:end], "\n") + "\n"
 }
-
 // Focus marks this component as focused.
 func (cv *ConversationView) Focus() {
 	cv.focused = true
@@ -259,6 +284,10 @@ func (cv *ConversationView) MessageCount() int {
 	return len(cv.messages)
 }
 
+// GetSelectionManager returns the conversation selection manager.
+func (cv *ConversationView) GetSelectionManager() *SelectionManager {
+	return cv.selMgr
+}
 func (cv *ConversationView) tick() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 		return conversationTickMsg{}
@@ -277,13 +306,12 @@ func (cv *ConversationView) maxScrollOffset() int {
 	if cv.height <= 0 {
 		return 0
 	}
-	lines := cv.renderLines()
+	lines, _ := cv.renderLines(false)
 	if len(lines) <= cv.height {
 		return 0
 	}
 	return len(lines) - cv.height
 }
-
 func (cv *ConversationView) clampScrollOffset() {
 	maxOffset := cv.maxScrollOffset()
 	if cv.scrollOffset < 0 {
@@ -303,15 +331,39 @@ func (cv *ConversationView) hasStreamingMessage() bool {
 	return false
 }
 
-func (cv *ConversationView) renderLines() []string {
+func (cv *ConversationView) renderLines(applySelection bool) ([]string, SelectableRegion) {
 	all := make([]string, 0, len(cv.messages)*4)
+	region := SelectableRegion{GutterWidth: 2}
+	contentRow := 0
+	lineRow := 0
+	regionInitialized := false
+
 	for _, msg := range cv.messages {
-		all = append(all, cv.renderMessage(msg)...)
+		rendered, contentLines, startRow, endRow := cv.renderMessage(msg, applySelection, contentRow, lineRow)
+		all = append(all, rendered...)
+		region.ContentLines = append(region.ContentLines, contentLines...)
+
+		if len(contentLines) > 0 {
+			if !regionInitialized {
+				region.StartRow = startRow
+				regionInitialized = true
+			}
+			region.EndRow = endRow
+		}
+
+		contentRow += len(contentLines)
+		lineRow += len(rendered)
 	}
-	return all
+
+	if !regionInitialized {
+		region.StartRow = 0
+		region.EndRow = 0
+	}
+
+	return all, region
 }
 
-func (cv *ConversationView) renderMessage(msg Message) []string {
+func (cv *ConversationView) renderMessage(msg Message, applySelection bool, contentRowStart, lineRowStart int) ([]string, []string, int, int) {
 	innerWidth := cv.width - 2
 	if innerWidth < 12 {
 		innerWidth = 12
@@ -336,9 +388,15 @@ func (cv *ConversationView) renderMessage(msg Message) []string {
 	top := "┌" + header + "┐"
 
 	wrapped := wrapConversationText(msg.Content, bodyWidth)
+	contentLines := make([]string, 0, len(wrapped))
 	body := make([]string, 0, len(wrapped))
-	for _, line := range wrapped {
-		body = append(body, "│ "+padRight(line, bodyWidth)+" │")
+	for i, line := range wrapped {
+		contentLine := padRight(line, bodyWidth)
+		contentLines = append(contentLines, contentLine)
+		if applySelection && cv.mouseSelectionEnabled && cv.selMgr != nil && cv.selMgr.HasSelection() {
+			contentLine = cv.selMgr.StyledLine(contentLine, contentRowStart+i)
+		}
+		body = append(body, "│ "+contentLine+" │")
 	}
 
 	bottom := "└" + strings.Repeat("─", innerWidth) + "┘"
@@ -346,9 +404,11 @@ func (cv *ConversationView) renderMessage(msg Message) []string {
 	lines := []string{top}
 	lines = append(lines, body...)
 	lines = append(lines, bottom)
-	return lines
-}
 
+	startRow := lineRowStart + 1
+	endRow := startRow + len(contentLines) - 1
+	return lines, contentLines, startRow, endRow
+}
 func (cv *ConversationView) renderRole(msg Message) string {
 	text := "assistant"
 	color := cv.assistantColor()

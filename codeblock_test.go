@@ -152,6 +152,34 @@ func TestCodeBlockWithPreviewLines(t *testing.T) {
 	}
 }
 
+// TestCodeBlockMouseSelectionOption tests mouse selection option
+func TestCodeBlockMouseSelectionOption(t *testing.T) {
+	cb := NewCodeBlock(
+		WithCodeBlockMouseSelection(true),
+	)
+
+	if !cb.mouseSelectionEnabled {
+		t.Error("Expected mouseSelectionEnabled=true")
+	}
+
+	if cb.selMgr == nil {
+		t.Fatal("Expected selection manager to be initialized")
+	}
+}
+
+// TestCodeBlockGetSelectionManager tests selection manager accessor
+func TestCodeBlockGetSelectionManager(t *testing.T) {
+	cb := NewCodeBlock()
+
+	selMgr := cb.GetSelectionManager()
+	if selMgr == nil {
+		t.Fatal("Expected non-nil selection manager")
+	}
+
+	if selMgr != cb.selMgr {
+		t.Error("GetSelectionManager should return internal selection manager")
+	}
+}
 // TestCodeBlockUpdate tests update with window size
 func TestCodeBlockUpdate(t *testing.T) {
 	cb := NewCodeBlock()

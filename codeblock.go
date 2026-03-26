@@ -9,9 +9,12 @@ import (
 
 // CodeBlock displays source code with line numbers, syntax highlighting (future), and collapse/expand
 type CodeBlock struct {
-	width     int
-	height    int
-	focused   bool
+	width   int
+	height  int
+	focused bool
+
+	selMgr                *SelectionManager
+	mouseSelectionEnabled bool
 
 	// Content
 	operation string   // e.g., "Write", "Read", "Edit"
@@ -21,10 +24,10 @@ type CodeBlock struct {
 	language  string   // Programming language (for future syntax highlighting)
 
 	// Display state
-	expanded     bool // Whether code is shown or collapsed
-	maxLines     int  // Maximum lines to show when expanded (0 = show all)
-	startLine    int  // Starting line number (1-indexed)
-	showPreview  int  // Number of lines to show when collapsed (default 8)
+	expanded    bool // Whether code is shown or collapsed
+	maxLines    int  // Maximum lines to show when expanded (0 = show all)
+	startLine   int  // Starting line number (1-indexed)
+	showPreview int  // Number of lines to show when collapsed (default 8)
 }
 
 // CodeBlockOption configures a CodeBlock
@@ -100,6 +103,13 @@ func WithPreviewLines(n int) CodeBlockOption {
 	}
 }
 
+// WithCodeBlockMouseSelection enables mouse-based selection for this code block.
+func WithCodeBlockMouseSelection(enabled bool) CodeBlockOption {
+	return func(cb *CodeBlock) {
+		cb.mouseSelectionEnabled = enabled
+	}
+}
+
 // NewCodeBlock creates a new code block component
 func NewCodeBlock(opts ...CodeBlockOption) *CodeBlock {
 	cb := &CodeBlock{
@@ -107,6 +117,7 @@ func NewCodeBlock(opts ...CodeBlockOption) *CodeBlock {
 		startLine:   1,
 		showPreview: 8,
 		expanded:    false,
+		selMgr:      NewSelectionManager(),
 	}
 
 	for _, opt := range opts {
@@ -118,6 +129,7 @@ func NewCodeBlock(opts ...CodeBlockOption) *CodeBlock {
 
 // Init initializes the code block
 func (cb *CodeBlock) Init() tea.Cmd {
+	// Mouse mode is managed at the app level; no component-level init needed.
 	return nil
 }
 
@@ -128,9 +140,28 @@ func (cb *CodeBlock) Update(msg tea.Msg) (Component, tea.Cmd) {
 		cb.width = msg.Width
 		cb.height = msg.Height
 
+	case tea.MouseMsg:
+		if cb.mouseSelectionEnabled && cb.selMgr != nil {
+			cb.selMgr.HandleMouse(msg)
+		}
+
 	case tea.KeyMsg:
+		if cb.selMgr != nil && cb.selMgr.HasSelection() {
+			switch msg.String() {
+			case "ctrl+c":
+				return cb, cb.selMgr.CopySelection()
+			}
+		}
+
 		if !cb.focused {
 			return cb, nil
+		}
+
+		if cb.selMgr != nil && cb.selMgr.HasSelection() {
+			switch msg.String() {
+			case "y":
+				return cb, cb.selMgr.CopySelection()
+			}
 		}
 
 		switch msg.String() {
@@ -145,6 +176,9 @@ func (cb *CodeBlock) Update(msg tea.Msg) (Component, tea.Cmd) {
 // View renders the code block
 func (cb *CodeBlock) View() string {
 	if len(cb.lines) == 0 {
+		if cb.selMgr != nil {
+			cb.selMgr.SetRegion(SelectableRegion{})
+		}
 		return ""
 	}
 
@@ -153,6 +187,7 @@ func (cb *CodeBlock) View() string {
 	// Header: ⏺ Operation(filename)
 	icon := cb.getOperationIcon()
 	b.WriteString(fmt.Sprintf("%s \033[1m%s\033[0m", icon, cb.operation))
+	headerLines := 1
 	if cb.filename != "" {
 		b.WriteString(fmt.Sprintf("(\033[36m%s\033[0m)", cb.filename))
 	}
@@ -161,6 +196,7 @@ func (cb *CodeBlock) View() string {
 	// Summary line
 	if cb.summary != "" {
 		b.WriteString(fmt.Sprintf("  \033[2m⎿  %s\033[0m\n", cb.summary))
+		headerLines++
 	}
 
 	// Code lines
@@ -169,6 +205,8 @@ func (cb *CodeBlock) View() string {
 	} else {
 		b.WriteString(cb.renderCollapsed())
 	}
+
+	cb.updateSelectionRegion(headerLines)
 
 	return b.String()
 }
@@ -208,6 +246,11 @@ func (cb *CodeBlock) IsExpanded() bool {
 	return cb.expanded
 }
 
+// GetSelectionManager returns the selection manager for this code block.
+func (cb *CodeBlock) GetSelectionManager() *SelectionManager {
+	return cb.selMgr
+}
+
 // getOperationIcon returns an icon for the operation type
 func (cb *CodeBlock) getOperationIcon() string {
 	switch strings.ToLower(cb.operation) {
@@ -236,7 +279,11 @@ func (cb *CodeBlock) renderCollapsed() string {
 	// Show preview lines
 	for i := 0; i < linesToShow; i++ {
 		lineNum := cb.startLine + i
-		b.WriteString(cb.renderLine(lineNum, cb.lines[i]))
+		content := cb.lines[i]
+		if cb.selMgr != nil && cb.selMgr.HasSelection() {
+			content = cb.selMgr.StyledLine(content, i)
+		}
+		b.WriteString(cb.renderLine(lineNum, content))
 	}
 
 	// Show "… +N lines" indicator
@@ -259,7 +306,11 @@ func (cb *CodeBlock) renderExpanded() string {
 
 	for i := 0; i < linesToShow; i++ {
 		lineNum := cb.startLine + i
-		b.WriteString(cb.renderLine(lineNum, cb.lines[i]))
+		content := cb.lines[i]
+		if cb.selMgr != nil && cb.selMgr.HasSelection() {
+			content = cb.selMgr.StyledLine(content, i)
+		}
+		b.WriteString(cb.renderLine(lineNum, content))
 	}
 
 	// Show "… +N more lines" if truncated
@@ -273,10 +324,53 @@ func (cb *CodeBlock) renderExpanded() string {
 
 // renderLine renders a single line with line number
 func (cb *CodeBlock) renderLine(lineNum int, content string) string {
-	// Calculate width needed for line numbers
-	maxLineNum := cb.startLine + len(cb.lines) - 1
-	lineNumWidth := len(fmt.Sprintf("%d", maxLineNum))
+	lineNumWidth := cb.lineNumWidth()
 
 	// Render: "      1 package main"
 	return fmt.Sprintf("  \033[2m%*d\033[0m %s\n", lineNumWidth, lineNum, content)
+}
+
+func (cb *CodeBlock) lineNumWidth() int {
+	maxLineNum := cb.startLine + len(cb.lines) - 1
+	return len(fmt.Sprintf("%d", maxLineNum))
+}
+
+func (cb *CodeBlock) visibleLines() []string {
+	if cb.expanded {
+		linesToShow := len(cb.lines)
+		if cb.maxLines > 0 && linesToShow > cb.maxLines {
+			linesToShow = cb.maxLines
+		}
+		return cb.lines[:linesToShow]
+	}
+
+	linesToShow := cb.showPreview
+	if linesToShow > len(cb.lines) {
+		linesToShow = len(cb.lines)
+	}
+	return cb.lines[:linesToShow]
+}
+
+func (cb *CodeBlock) updateSelectionRegion(headerLines int) {
+	if cb.selMgr == nil {
+		return
+	}
+
+	visible := cb.visibleLines()
+	contentLines := make([]string, len(visible))
+	copy(contentLines, visible)
+
+	startRow := headerLines
+	endRow := headerLines
+	if len(contentLines) > 0 {
+		endRow = startRow + len(contentLines) - 1
+	}
+
+	region := SelectableRegion{
+		StartRow:     startRow,
+		EndRow:       endRow,
+		GutterWidth:  2 + cb.lineNumWidth() + 1,
+		ContentLines: contentLines,
+	}
+	cb.selMgr.SetRegion(region)
 }

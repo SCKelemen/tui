@@ -19,8 +19,8 @@ type DiffType int
 
 const (
 	DiffUnchanged DiffType = iota // No change (context)
-	DiffAdded                      // Line was added (+)
-	DiffRemoved                    // Line was removed (-)
+	DiffAdded                     // Line was added (+)
+	DiffRemoved                   // Line was removed (-)
 )
 
 // DiffBlock displays code changes with +/- indicators
@@ -30,17 +30,21 @@ type DiffBlock struct {
 	focused bool
 
 	// Content
-	filename    string     // File being modified
-	operation   string     // e.g., "Edit", "Refactor"
-	summary     string     // Summary of changes
-	lines       []DiffLine // Diff lines
-	oldStart    int        // Starting line number in old file
-	newStart    int        // Starting line number in new file
+	filename  string     // File being modified
+	operation string     // e.g., "Edit", "Refactor"
+	summary   string     // Summary of changes
+	lines     []DiffLine // Diff lines
+	oldStart  int        // Starting line number in old file
+	newStart  int        // Starting line number in new file
 
 	// Display state
-	expanded     bool // Whether diff is shown or collapsed
-	showContext  int  // Number of context lines to show around changes (default 3)
-	maxLines     int  // Maximum lines to show when expanded (0 = show all)
+	expanded    bool // Whether diff is shown or collapsed
+	showContext int  // Number of context lines to show around changes (default 3)
+	maxLines    int  // Maximum lines to show when expanded (0 = show all)
+
+	// Selection state
+	selMgr         *SelectionManager
+	mouseSelection bool
 }
 
 // DiffBlockOption configures a DiffBlock
@@ -95,6 +99,13 @@ func WithDiffMaxLines(max int) DiffBlockOption {
 	}
 }
 
+// WithDiffBlockMouseSelection enables/disables mouse selection support.
+func WithDiffBlockMouseSelection(enabled bool) DiffBlockOption {
+	return func(db *DiffBlock) {
+		db.mouseSelection = enabled
+	}
+}
+
 // NewDiffBlock creates a new diff block component
 func NewDiffBlock(opts ...DiffBlockOption) *DiffBlock {
 	db := &DiffBlock{
@@ -103,6 +114,7 @@ func NewDiffBlock(opts ...DiffBlockOption) *DiffBlock {
 		expanded:    false,
 		oldStart:    1,
 		newStart:    1,
+		selMgr:      NewSelectionManager(),
 	}
 
 	for _, opt := range opts {
@@ -192,7 +204,23 @@ func (db *DiffBlock) Update(msg tea.Msg) (Component, tea.Cmd) {
 		db.width = msg.Width
 		db.height = msg.Height
 
+	case tea.MouseMsg:
+		if db.mouseSelection && db.selMgr != nil {
+			db.selMgr.HandleMouse(msg)
+		}
+
 	case tea.KeyMsg:
+		if db.mouseSelection && db.selMgr != nil && db.selMgr.HasSelection() {
+			switch msg.String() {
+			case "y":
+				if db.focused {
+					return db, db.selMgr.CopySelection()
+				}
+			case "ctrl+c":
+				return db, db.selMgr.CopySelection()
+			}
+		}
+
 		if !db.focused {
 			return db, nil
 		}
@@ -232,11 +260,39 @@ func (db *DiffBlock) View() string {
 		b.WriteString(fmt.Sprintf("  \033[2m⎿  Added %d lines, removed %d lines\033[0m\n", added, removed))
 	}
 
-	// Diff lines
-	if db.expanded {
-		b.WriteString(db.renderExpanded())
-	} else {
-		b.WriteString(db.renderCollapsed())
+	visibleLines, remaining, isTruncated := db.visibleLines()
+
+	if db.mouseSelection && db.selMgr != nil {
+		contentLines := make([]string, 0, len(visibleLines))
+		for _, line := range visibleLines {
+			contentLines = append(contentLines, line.Content)
+		}
+
+		const headerLines = 2
+		startRow := headerLines
+		endRow := startRow + len(contentLines) - 1
+		if len(contentLines) == 0 {
+			endRow = startRow
+		}
+
+		db.selMgr.SetRegion(SelectableRegion{
+			StartRow:     startRow,
+			EndRow:       endRow,
+			GutterWidth:  9,
+			ContentLines: contentLines,
+		})
+	}
+
+	for i, line := range visibleLines {
+		b.WriteString(db.renderDiffLine(line, i))
+	}
+
+	if remaining > 0 {
+		if db.expanded && isTruncated {
+			b.WriteString(fmt.Sprintf("     \033[2m… +%d more lines (truncated)\033[0m\n", remaining))
+		} else {
+			b.WriteString(fmt.Sprintf("     \033[2m… +%d more lines (\033[3mctrl+o to expand\033[0m\033[2m)\033[0m\n", remaining))
+		}
 	}
 
 	return b.String()
@@ -255,6 +311,11 @@ func (db *DiffBlock) Blur() {
 // Focused returns whether this component is currently focused
 func (db *DiffBlock) Focused() bool {
 	return db.focused
+}
+
+// GetSelectionManager returns this DiffBlock's selection manager.
+func (db *DiffBlock) GetSelectionManager() *SelectionManager {
+	return db.selMgr
 }
 
 // Toggle expands or collapses the diff block
@@ -290,24 +351,29 @@ func (db *DiffBlock) countChanges() (added, removed int) {
 	return
 }
 
-// renderCollapsed shows first few changes with context
-func (db *DiffBlock) renderCollapsed() string {
-	var b strings.Builder
+func (db *DiffBlock) visibleLines() ([]DiffLine, int, bool) {
+	if db.expanded {
+		linesToShow := len(db.lines)
+		if db.maxLines > 0 && linesToShow > db.maxLines {
+			linesToShow = db.maxLines
+		}
 
-	// Show first few changes with surrounding context
-	shownLines := 0
-	maxPreview := 15 // Show more lines to include context
+		if db.maxLines > 0 && len(db.lines) > db.maxLines {
+			remaining := len(db.lines) - db.maxLines
+			return db.lines[:linesToShow], remaining, true
+		}
 
-	// Track whether we've shown a change yet
+		return db.lines[:linesToShow], 0, false
+	}
+
+	// Collapsed mode: show first few changes with surrounding context.
+	visible := make([]DiffLine, 0, len(db.lines))
+	maxPreview := 15
 	hasChanges := false
 
 	for i, line := range db.lines {
-		// Show context before/after changes
 		if line.Type == DiffUnchanged {
-			// Only show context if we're near a change
 			showContext := false
-
-			// Check if there's a change within N lines
 			contextWindow := 2
 			for j := i - contextWindow; j <= i+contextWindow; j++ {
 				if j >= 0 && j < len(db.lines) && db.lines[j].Type != DiffUnchanged {
@@ -317,7 +383,6 @@ func (db *DiffBlock) renderCollapsed() string {
 			}
 
 			if !showContext && hasChanges {
-				// We've moved past the changes, stop
 				break
 			}
 
@@ -328,61 +393,40 @@ func (db *DiffBlock) renderCollapsed() string {
 			hasChanges = true
 		}
 
-		if shownLines >= maxPreview {
+		if len(visible) >= maxPreview {
 			break
 		}
 
-		b.WriteString(db.renderDiffLine(line))
-		shownLines++
+		visible = append(visible, line)
 	}
 
-	// Show expansion hint if there are more lines
-	if len(db.lines) > shownLines {
-		remaining := len(db.lines) - shownLines
-		b.WriteString(fmt.Sprintf("     \033[2m… +%d more lines (\033[3mctrl+o to expand\033[0m\033[2m)\033[0m\n", remaining))
+	if len(db.lines) > len(visible) {
+		return visible, len(db.lines) - len(visible), false
 	}
 
-	return b.String()
-}
-
-// renderExpanded shows the full diff with context
-func (db *DiffBlock) renderExpanded() string {
-	var b strings.Builder
-
-	linesToShow := len(db.lines)
-	if db.maxLines > 0 && linesToShow > db.maxLines {
-		linesToShow = db.maxLines
-	}
-
-	for i := 0; i < linesToShow; i++ {
-		b.WriteString(db.renderDiffLine(db.lines[i]))
-	}
-
-	// Show "… more lines" if truncated
-	if db.maxLines > 0 && len(db.lines) > db.maxLines {
-		remaining := len(db.lines) - db.maxLines
-		b.WriteString(fmt.Sprintf("     \033[2m… +%d more lines (truncated)\033[0m\n", remaining))
-	}
-
-	return b.String()
+	return visible, 0, false
 }
 
 // renderDiffLine renders a single diff line with line numbers (unified diff format)
-func (db *DiffBlock) renderDiffLine(line DiffLine) string {
+func (db *DiffBlock) renderDiffLine(line DiffLine, row int) string {
 	// Line number format: right-aligned, 6 chars wide total
 	lineNumStr := fmt.Sprintf("%6d", line.LineNum)
+	content := line.Content
+	if db.mouseSelection && db.selMgr != nil && db.selMgr.HasSelection() {
+		content = db.selMgr.StyledLine(content, row)
+	}
 
 	switch line.Type {
 	case DiffAdded:
 		// Green + with line number: "    22 +    content"
-		return fmt.Sprintf("  %s \033[32m+%s\033[0m\n", lineNumStr, line.Content)
+		return fmt.Sprintf("  %s \033[32m+%s\033[0m\n", lineNumStr, content)
 	case DiffRemoved:
 		// Red - with line number: "    22 -    content"
-		return fmt.Sprintf("  %s \033[31m-%s\033[0m\n", lineNumStr, line.Content)
+		return fmt.Sprintf("  %s \033[31m-%s\033[0m\n", lineNumStr, content)
 	case DiffUnchanged:
 		// No prefix, just line number: "    22     content"
-		return fmt.Sprintf("  %s  %s\n", lineNumStr, line.Content)
+		return fmt.Sprintf("  %s  %s\n", lineNumStr, content)
 	default:
-		return fmt.Sprintf("        %s\n", line.Content)
+		return fmt.Sprintf("        %s\n", content)
 	}
 }

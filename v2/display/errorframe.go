@@ -2,7 +2,6 @@ package display
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
@@ -84,7 +83,7 @@ func (e *ErrorFrame) View() string {
 		contentWidth = 1
 	}
 
-	titleText := truncateToWidth(e.title, contentWidth)
+	titleText := style.Truncate(e.title, contentWidth, "…")
 	messageLines := e.wrappedMessageLines(contentWidth)
 	if len(messageLines) == 0 {
 		messageLines = []string{""}
@@ -151,11 +150,11 @@ func (e *ErrorFrame) SetMessage(s string) {
 }
 
 func (e *ErrorFrame) renderContentLine(text string, contentWidth int, borderColor, textColor string) string {
-	if utf8.RuneCountInString(text) > contentWidth {
-		text = truncateToWidth(text, contentWidth)
+	if style.StringWidth(text) > contentWidth {
+		text = style.Truncate(text, contentWidth, "…")
 	}
 
-	padding := contentWidth - utf8.RuneCountInString(text)
+	padding := contentWidth - style.StringWidth(text)
 	if padding < 0 {
 		padding = 0
 	}
@@ -181,9 +180,9 @@ func (e *ErrorFrame) contentWidth() int {
 		return e.width
 	}
 
-	longest := utf8.RuneCountInString(e.title)
+	longest := style.StringWidth(e.title)
 	for _, line := range strings.Split(e.message, "\n") {
-		if n := utf8.RuneCountInString(line); n > longest {
+		if n := style.StringWidth(line); n > longest {
 			longest = n
 		}
 	}
@@ -248,7 +247,7 @@ func wrapLine(line string, width int) []string {
 	current := ""
 
 	for _, word := range words {
-		for utf8.RuneCountInString(word) > width {
+		for style.StringWidth(word) > width {
 			if current != "" {
 				lines = append(lines, current)
 				current = ""
@@ -267,7 +266,7 @@ func wrapLine(line string, width int) []string {
 			continue
 		}
 
-		if utf8.RuneCountInString(current)+1+utf8.RuneCountInString(word) <= width {
+		if style.StringWidth(current)+1+style.StringWidth(word) <= width {
 			current += " " + word
 		} else {
 			lines = append(lines, current)
@@ -283,20 +282,6 @@ func wrapLine(line string, width int) []string {
 		return []string{""}
 	}
 	return lines
-}
-
-func truncateToWidth(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if utf8.RuneCountInString(s) <= width {
-		return s
-	}
-	if width == 1 {
-		return "…"
-	}
-	chunk, _ := splitAtRunes(s, width-1)
-	return chunk + "…"
 }
 
 func splitAtRunes(s string, n int) (string, string) {

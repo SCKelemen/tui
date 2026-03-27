@@ -365,16 +365,15 @@ func (c *Checklist) renderHeader() string {
 	done, total := c.CompletionCount()
 	progress := c.progressSummary(done, total)
 
-	leftLen := len(stripANSIChecklist(left))
-	progressLen := len(stripANSIChecklist(progress))
+	leftLen := style.StringWidth(stripANSIChecklist(left))
+	progressLen := style.StringWidth(stripANSIChecklist(progress))
 	spacing := c.width - leftLen - progressLen
 	if spacing < 1 {
 		return c.fitToWidth(left + " " + progress)
 	}
 
-	return left + strings.Repeat(" ", spacing) + progress
+	return style.Pad(left, c.width-progressLen) + progress
 }
-
 func (c *Checklist) progressSummary(done, total int) string {
 	if total == 0 {
 		return "[0/0 ░░░░░░ 0%]"
@@ -457,15 +456,11 @@ func (c *Checklist) fitToWidth(line string) string {
 	if c.width <= 0 {
 		return line
 	}
-	if len(stripANSIChecklist(line)) <= c.width {
+	if style.StringWidth(stripANSIChecklist(line)) <= c.width {
 		return line
 	}
-	if c.width <= 3 {
-		return truncateANSIChecklist(line, c.width)
-	}
-	return truncateANSIChecklist(line, c.width-3) + "..."
+	return style.Truncate(line, c.width, "…")
 }
-
 func (c *Checklist) clampSelection() {
 	visibleCount := len(c.visibleItems())
 	if visibleCount == 0 {

@@ -3,7 +3,6 @@ package display
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
@@ -70,11 +69,10 @@ func (c *FileCard) View() string {
 	plainContent := c.plainContent()
 	styledContent := c.styledContent()
 
-	innerWidth := utf8.RuneCountInString(plainContent) + 2
+	innerWidth := style.StringWidth(plainContent) + 2
 	if innerWidth < 2 {
 		innerWidth = 2
 	}
-
 	top := "╭" + strings.Repeat("─", innerWidth) + "╮"
 	mid := "│ " + styledContent + " │"
 	bot := "╰" + strings.Repeat("─", innerWidth) + "╯"
@@ -150,7 +148,7 @@ func NewFileCardRow(cards ...*FileCard) string {
 
 func (c *FileCard) plainContent() string {
 	var b strings.Builder
-	b.WriteString(c.filename)
+	b.WriteString(c.displayFilename())
 	if c.additions > 0 {
 		b.WriteString(fmt.Sprintf(" +%d", c.additions))
 	}
@@ -162,7 +160,7 @@ func (c *FileCard) plainContent() string {
 
 func (c *FileCard) styledContent() string {
 	var b strings.Builder
-	b.WriteString(c.filename)
+	b.WriteString(c.displayFilename())
 	if c.additions > 0 {
 		b.WriteString(" ")
 		b.WriteString(style.ANSIGreen)
@@ -176,6 +174,11 @@ func (c *FileCard) styledContent() string {
 		b.WriteString(style.ANSIReset)
 	}
 	return b.String()
+}
+
+func (c *FileCard) displayFilename() string {
+	const maxFilenameWidth = 80
+	return style.Truncate(c.filename, maxFilenameWidth, "…")
 }
 
 var _ tui.Component = (*FileCard)(nil)

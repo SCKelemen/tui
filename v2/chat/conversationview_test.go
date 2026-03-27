@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
 func TestConversationViewCreation(t *testing.T) {
 	cv := NewConversationView()
 	if cv == nil {
@@ -188,5 +188,210 @@ func TestConversationViewGetSelectionManager(t *testing.T) {
 	}
 	if selMgr != cv.selMgr {
 		t.Fatal("expected accessor to return internal selection manager")
+	}
+}
+
+func TestConversationViewOptionsAndFocusLifecycle(t *testing.T) {
+	cv := NewConversationView(
+		WithConversationDesignTokens(design.NordTheme()),
+		WithConversationTheme("paper"),
+		WithMaxMessages(-5),
+	)
+
+	if cv.designTokens == nil {
+		t.Fatal("expected design tokens from theme option")
+	}
+	if cv.maxMessages != 0 {
+		t.Fatalf("expected negative max to clamp to 0, got %d", cv.maxMessages)
+	}
+	if cv.Focused() {
+		t.Fatal("new view should not be focused")
+	}
+
+	cv.Focus()
+	if !cv.Focused() {
+		t.Fatal("view should be focused after Focus")
+	}
+
+	cv.Blur()
+	if cv.Focused() {
+		t.Fatal("view should not be focused after Blur")
+	}
+}
+
+func TestConversationViewInitAndTickBehavior(t *testing.T) {
+	cv := NewConversationView()
+	cmd := cv.Init()
+	if cmd == nil {
+		t.Fatal("Init should return non-nil command")
+	}
+
+	msg := cmd()
+	if _, ok := msg.(conversationTickMsg); !ok {
+		t.Fatalf("expected conversationTickMsg, got %T", msg)
+	}
+
+	before := cv.spinIdx
+	_, nextCmd := cv.Update(msg)
+	if nextCmd == nil {
+		t.Fatal("tick update should return next tick command")
+	}
+	if cv.spinIdx != before {
+		t.Fatal("spin index should not advance without streaming message")
+	}
+
+	cv.AddMessage(Message{ID: "stream", Role: RoleAssistant, Content: "thinking", Streaming: true, Timestamp: time.Now()})
+	before = cv.spinIdx
+	_, nextCmd = cv.Update(conversationTickMsg{})
+	if nextCmd == nil {
+		t.Fatal("tick update should continue scheduling")
+	}
+	if cv.spinIdx != before+1 {
+		t.Fatalf("expected spin index increment by 1, got %d -> %d", before, cv.spinIdx)
+	}
+}
+
+func TestConversationViewViewEdgeCases(t *testing.T) {
+	cv := NewConversationView()
+	if got := cv.View(); got != "" {
+		t.Fatalf("expected empty view at zero width, got %q", got)
+	}
+
+	cv.Update(tea.WindowSizeMsg{Width: 30, Height: 5})
+	if got := cv.View(); got != "" {
+		t.Fatalf("expected empty view with no messages, got %q", got)
+	}
+
+	cv.AddMessage(Message{ID: "1", Role: RoleUser, Content: "", Timestamp: time.Now()})
+	if got := cv.View(); got == "" {
+		t.Fatal("expected rendered frame for empty message content")
+	}
+
+	cv.Update(tea.WindowSizeMsg{Width: 0, Height: 5})
+	if got := cv.View(); got != "" {
+		t.Fatalf("expected empty view at zero width, got %q", got)
+	}
+}
+
+func TestConversationViewViewHeightAndLongWrap(t *testing.T) {
+	cv := NewConversationView(WithShowTimestamps(false))
+	cv.Update(tea.WindowSizeMsg{Width: 20, Height: 0})
+	cv.AddMessage(Message{ID: "1", Role: RoleAssistant, Content: "this is a very long message that should wrap across multiple lines", Timestamp: time.Now()})
+
+	full := cv.View()
+	if !strings.Contains(full, "assistant") {
+		t.Fatal("expected role in rendered view")
+	}
+	if !strings.Contains(full, "this is a") {
+		t.Fatal("expected wrapped content in rendered view")
+	}
+
+	cv.Update(tea.WindowSizeMsg{Width: 20, Height: 2})
+	truncated := cv.View()
+	if truncated == "" {
+		t.Fatal("expected non-empty truncated view")
+	}
+}
+
+func TestConversationViewUpdateWindowAndKeyControls(t *testing.T) {
+	cv := NewConversationView()
+	cv.Update(tea.WindowSizeMsg{Width: 30, Height: 4})
+	cv.Focus()
+
+	for i := 0; i < 5; i++ {
+		cv.AddMessage(Message{ID: string(rune('a' + i)), Role: RoleUser, Content: "line", Timestamp: time.Now()})
+	}
+
+	bottom := cv.maxScrollOffset()
+	if cv.scrollOffset != bottom {
+		t.Fatalf("expected auto-scroll to bottom %d, got %d", bottom, cv.scrollOffset)
+	}
+
+	cv.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if cv.scrollOffset != bottom {
+		t.Fatal("down at bottom should remain clamped")
+	}
+
+	cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if cv.scrollOffset >= bottom {
+		t.Fatal("k should scroll up")
+	}
+
+	cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if cv.scrollOffset != bottom {
+		t.Fatal("j should scroll down back to bottom")
+	}
+
+	cv.Blur()
+	before := cv.scrollOffset
+	cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if cv.scrollOffset != before {
+		t.Fatal("blurred view should ignore scroll keys")
+	}
+}
+
+func TestConversationViewMouseSelectionAndCopyPaths(t *testing.T) {
+	cv := NewConversationView(WithConversationMouseSelection(true), WithShowTimestamps(false))
+	cv.Update(tea.WindowSizeMsg{Width: 40, Height: 8})
+	cv.AddMessage(Message{ID: "1", Role: RoleAssistant, Content: "alpha bravo", Timestamp: time.Now()})
+
+	_ = cv.View()
+
+	cv.Update(tea.MouseMsg{X: 2, Y: 1, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	cv.Update(tea.MouseMsg{X: 7, Y: 1, Action: tea.MouseActionMotion, Button: tea.MouseButtonLeft})
+	cv.Update(tea.MouseMsg{X: 7, Y: 1, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+
+	if !cv.selMgr.HasSelection() {
+		t.Fatal("expected finalized selection after mouse drag")
+	}
+
+	_, cmd := cv.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Fatal("ctrl+c should return copy command when selection exists")
+	}
+
+	cv.Focus()
+	_, cmd = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if cmd == nil {
+		t.Fatal("y should return copy command when focused and selection exists")
+	}
+
+	selectedView := cv.View()
+	if !strings.Contains(selectedView, "\x1b[7m") {
+		t.Fatal("expected selection highlighting to be applied in view")
+	}
+}
+
+func TestConversationViewClearAndColorFallbacks(t *testing.T) {
+	cv := NewConversationView()
+	cv.Update(tea.WindowSizeMsg{Width: 32, Height: 6})
+	cv.AddMessage(Message{ID: "1", Role: RoleSystem, Content: "notice", Timestamp: time.Now()})
+	cv.AppendToLast(" now")
+	cv.AppendToLast("")
+
+	if cv.MessageCount() != 1 {
+		t.Fatalf("expected 1 message before clear, got %d", cv.MessageCount())
+	}
+
+	cv.Clear()
+	if cv.MessageCount() != 0 {
+		t.Fatalf("expected 0 messages after clear, got %d", cv.MessageCount())
+	}
+	if cv.scrollOffset != 0 {
+		t.Fatalf("expected scroll offset reset after clear, got %d", cv.scrollOffset)
+	}
+
+	cv.AppendToLast("ignored")
+	if cv.MessageCount() != 0 {
+		t.Fatal("append on empty conversation should do nothing")
+	}
+
+	tokens := &design.DesignTokens{Accent: "not-a-hex", Color: "not-a-hex"}
+	colored := NewConversationView(WithConversationDesignTokens(tokens))
+	if got := colored.userColor(); got == "" {
+		t.Fatal("user color should always have fallback")
+	}
+	if got := colored.systemColor(); got == "" {
+		t.Fatal("system color should always have fallback")
 	}
 }

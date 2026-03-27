@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
+	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -277,5 +279,137 @@ func TestThreadProgressViewWithoutElapsed(t *testing.T) {
 	view := tp.View()
 	if strings.Contains(view, "(") && strings.Contains(view, "s)") {
 		t.Error("elapsed time should not render when disabled")
+	}
+}
+
+func TestThreadProgressDesignTokenOptionsAndHelpers(t *testing.T) {
+	tokens := &design.DesignTokens{Accent: "#00ff00", Color: "#ff0000"}
+	tp := NewThreadProgress(
+		WithThreadProgressDesignTokens(tokens),
+		WithThreadProgressTheme("midnight"),
+		WithMaxOutputLines(-2),
+	)
+	if tp.maxOutputLines != 0 {
+		t.Fatalf("expected negative max output lines to clamp to 0, got %d", tp.maxOutputLines)
+	}
+
+	if tp.runningColor == "" || tp.errorColor == "" {
+		t.Fatal("expected colors to be applied from design tokens/theme")
+	}
+
+	tp.applyDesignTokens(nil)
+}
+
+func TestThreadProgressViewEmptyAndTruncationHelpers(t *testing.T) {
+	tp := NewThreadProgress()
+	tp.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	view := tp.View()
+	if !strings.Contains(view, "(no threads)") {
+		t.Fatalf("expected empty-state view, got: %q", view)
+	}
+
+	fitted := tp.fitToWidth("1234567890123456789012345")
+	if !strings.Contains(fitted, "…") {
+		t.Fatalf("expected long line to be truncated with ellipsis, got %q", fitted)
+	}
+
+	tp.width = 3
+	short := tp.fitToWidth("abcdef")
+	if style.StringWidth(stripANSI(short)) != 3 {
+		t.Fatalf("expected width=3 truncation, got %q", short)
+	}
+}
+
+func TestThreadProgressUpdateBoundariesAndUnknownIDs(t *testing.T) {
+	tp := NewThreadProgress()
+	tp.AddThread("t1", "one")
+	tp.AddThread("t2", "two")
+	tp.Focus()
+
+	tp.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if tp.selected != 0 {
+		t.Fatalf("expected selection clamped at 0, got %d", tp.selected)
+	}
+
+	tp.Update(tea.KeyMsg{Type: tea.KeyDown})
+	tp.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if tp.selected != 1 {
+		t.Fatalf("expected selection clamped at last index, got %d", tp.selected)
+	}
+
+	tp.SetThreadExpanded("missing", true)
+	tp.AppendOutput("missing", "ignored")
+	tp.UpdateThread("missing", ThreadCompleted)
+	if cmd := tp.StartThread("missing"); cmd != nil {
+		t.Fatal("expected nil command for missing thread")
+	}
+}
+
+func TestThreadProgressUpdateThreadTimestampsAndRemoveSelection(t *testing.T) {
+	tp := NewThreadProgress()
+	tp.AddThread("a", "A")
+	tp.AddThread("b", "B")
+	tp.AddThread("c", "C")
+	tp.selected = 2
+
+	tp.UpdateThread("a", ThreadCompleted)
+	entry := tp.GetThread("a")
+	if entry == nil || entry.EndTime.IsZero() {
+		t.Fatal("expected completed thread to set end time")
+	}
+
+	tp.UpdateThread("a", ThreadRunning)
+	if !tp.GetThread("a").EndTime.IsZero() {
+		t.Fatal("expected running transition to clear end time")
+	}
+
+	tp.RemoveThread("")
+	tp.RemoveThread("missing")
+	tp.RemoveThread("c")
+	if tp.selected != 1 {
+		t.Fatalf("expected selected index to adjust to 1 after remove, got %d", tp.selected)
+	}
+}
+
+func TestThreadProgressRenderingHelpersAndTruncationFuncs(t *testing.T) {
+	tp := NewThreadProgress()
+	entry := &ThreadEntry{Label: "job", Status: ThreadStatus(999)}
+
+	status := tp.renderStatusIcon(ThreadStatus(999))
+	if !strings.Contains(status, tp.iconSet.None) {
+		t.Fatalf("expected fallback icon in status rendering, got %q", status)
+	}
+
+	entry.StartTime = time.Now().Add(-2 * time.Second)
+	entry.EndTime = time.Now()
+	entry.Status = ThreadCompleted
+	header := tp.renderHeader(entry)
+	if !strings.Contains(header, "job") {
+		t.Fatalf("expected header to contain label, got %q", header)
+	}
+
+	if got := tp.threadDuration(&ThreadEntry{}); got >= 0 {
+		t.Fatalf("expected negative duration for zero start time, got %v", got)
+	}
+
+	if got := tp.formatDuration(-1 * time.Second); got != "0s" {
+		t.Fatalf("expected negative duration to clamp to 0s, got %q", got)
+	}
+	ansi := style.ANSIBold + "hello" + style.ANSIReset
+	if stripANSI(ansi) != "hello" {
+		t.Fatalf("stripANSI failed for %q", ansi)
+	}
+
+	truncAnsi := truncateANSI(ansi+" world", 5)
+	if len(stripANSI(truncAnsi)) != 5 {
+		t.Fatalf("truncateANSI should keep visual width 5, got %q", truncAnsi)
+	}
+
+	if got := truncateString("abcdef", 3); got != "abc" {
+		t.Fatalf("expected hard truncate for maxLen<=3, got %q", got)
+	}
+	if got := truncateString("abcdef", -1); got != "" {
+		t.Fatalf("expected empty string for non-positive maxLen, got %q", got)
 	}
 }

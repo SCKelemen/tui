@@ -169,7 +169,7 @@ func (t *TabBar) View() string {
 	topPlain := strings.Join(plainParts, separator)
 	topStyled := strings.Join(styledParts, separator)
 
-	bottomWidth := len(topPlain)
+	bottomWidth := style.StringWidth(topPlain)
 	if t.width > bottomWidth {
 		bottomWidth = t.width
 	}
@@ -182,9 +182,9 @@ func (t *TabBar) View() string {
 	if t.activeIdx >= 0 && t.activeIdx < len(t.tabs) {
 		start := 0
 		for i := 0; i < t.activeIdx; i++ {
-			start += len(plainParts[i]) + len(separator)
+			start += style.StringWidth(plainParts[i]) + style.StringWidth(separator)
 		}
-		activeLen := len(plainParts[t.activeIdx])
+		activeLen := style.StringWidth(plainParts[t.activeIdx])
 		if start < len(bottom) {
 			bottom[start] = '┘'
 		}
@@ -195,7 +195,6 @@ func (t *TabBar) View() string {
 			bottom[end] = '└'
 		}
 	}
-
 	return topStyled + "\n" + string(bottom) + "\n"
 }
 

@@ -462,7 +462,7 @@ func (cv *ConversationView) renderRole(msg Message) string {
 func (cv *ConversationView) renderHeader(innerWidth int, left, right string) string {
 	if right == "" {
 		base := left + " "
-		remaining := innerWidth - len(stripANSI(base))
+		remaining := innerWidth - style.StringWidth(stripANSI(base))
 		if remaining < 0 {
 			remaining = 0
 		}
@@ -470,13 +470,12 @@ func (cv *ConversationView) renderHeader(innerWidth int, left, right string) str
 	}
 
 	base := left + " "
-	remaining := innerWidth - len(stripANSI(base)) - len(right) - 1
+	remaining := innerWidth - style.StringWidth(stripANSI(base)) - style.StringWidth(right) - 1
 	if remaining < 1 {
 		remaining = 1
 	}
 	return base + strings.Repeat("─", remaining) + " " + right
 }
-
 func (cv *ConversationView) userColor() string {
 	if cv.designTokens == nil {
 		return style.ANSICyan
@@ -538,12 +537,11 @@ func wrapConversationText(content string, width int) []string {
 }
 
 func padRight(s string, width int) string {
-	if len(s) >= width {
-		return s[:width]
+	if style.StringWidth(s) >= width {
+		return style.Truncate(s, width, "")
 	}
-	return s + strings.Repeat(" ", width-len(s))
+	return style.Pad(s, width)
 }
-
 func stripANSI(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }

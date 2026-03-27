@@ -149,10 +149,10 @@ func (cp *CommandPalette) View() string {
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString("\033[1;44m")
 	title := " Command Palette "
-	padding := (paletteWidth - len(title)) / 2
+	padding := (paletteWidth - style.StringWidth(title)) / 2
 	b.WriteString(strings.Repeat(" ", padding))
 	b.WriteString(title)
-	rightPadding := paletteWidth - padding - len(title)
+	rightPadding := paletteWidth - padding - style.StringWidth(title)
 	if rightPadding < 0 {
 		rightPadding = 0
 	}
@@ -167,12 +167,7 @@ func (cp *CommandPalette) View() string {
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString(style.ANSIDim + "│" + style.ANSIReset + " ")
 	inputView := cp.textInput.View()
-	b.WriteString(inputView)
-	inputPadding := paletteWidth - len(stripANSICommandPalette(inputView)) - 4
-	if inputPadding < 0 {
-		inputPadding = 0
-	}
-	b.WriteString(strings.Repeat(" ", inputPadding))
+	b.WriteString(style.Pad(inputView, paletteWidth-4))
 	b.WriteString(" " + style.ANSIDim + "│" + style.ANSIReset + "\n")
 
 	b.WriteString(strings.Repeat(" ", startX))
@@ -188,13 +183,7 @@ func (cp *CommandPalette) View() string {
 	if len(visibleCommands) == 0 {
 		b.WriteString(strings.Repeat(" ", startX))
 		b.WriteString(style.ANSIDim + "│" + style.ANSIReset + " ")
-		noResults := "No commands found"
-		b.WriteString(noResults)
-		noResultsPadding := paletteWidth - len(noResults) - 4
-		if noResultsPadding < 0 {
-			noResultsPadding = 0
-		}
-		b.WriteString(strings.Repeat(" ", noResultsPadding))
+		b.WriteString(style.Pad("No commands found", paletteWidth-4))
 		b.WriteString(" " + style.ANSIDim + "│" + style.ANSIReset + "\n")
 	} else {
 		for i, cmd := range visibleCommands {
@@ -202,10 +191,7 @@ func (cp *CommandPalette) View() string {
 
 			if i == cp.selected {
 				b.WriteString(style.ANSIDim + "│" + style.ANSIReset + style.ANSIInverse + " ▸ ")
-				cmdLine := fmt.Sprintf("%-30s", cmd.Name)
-				if len(cmdLine) > 30 {
-					cmdLine = cmdLine[:27] + "..."
-				}
+				cmdLine := style.Pad(style.Truncate(cmd.Name, 30, "…"), 30)
 				b.WriteString(cmdLine)
 
 				if cmd.Keybinding != "" {
@@ -214,7 +200,7 @@ func (cp *CommandPalette) View() string {
 					b.WriteString(style.ANSIReset + style.ANSIInverse)
 				}
 
-				currentLen := 33 + len(cmd.Keybinding)
+				currentLen := 33 + style.StringWidth(cmd.Keybinding)
 				linePadding := paletteWidth - currentLen - 3
 				if linePadding < 0 {
 					linePadding = 0
@@ -223,10 +209,7 @@ func (cp *CommandPalette) View() string {
 				b.WriteString(style.ANSIReset + style.ANSIDim + "│" + style.ANSIReset + "\n")
 			} else {
 				b.WriteString(style.ANSIDim + "│" + style.ANSIReset + "   ")
-				cmdLine := fmt.Sprintf("%-30s", cmd.Name)
-				if len(cmdLine) > 30 {
-					cmdLine = cmdLine[:27] + "..."
-				}
+				cmdLine := style.Pad(style.Truncate(cmd.Name, 30, "…"), 30)
 				b.WriteString(cmdLine)
 
 				if cmd.Keybinding != "" {
@@ -235,7 +218,7 @@ func (cp *CommandPalette) View() string {
 					b.WriteString(style.ANSIReset)
 				}
 
-				currentLen := 33 + len(cmd.Keybinding)
+				currentLen := 33 + style.StringWidth(cmd.Keybinding)
 				linePadding := paletteWidth - currentLen - 3
 				if linePadding < 0 {
 					linePadding = 0
@@ -250,7 +233,7 @@ func (cp *CommandPalette) View() string {
 	b.WriteString(style.ANSIDim + "└")
 	footer := fmt.Sprintf(" %d commands ", len(cp.filtered))
 	b.WriteString(footer)
-	footerWidth := paletteWidth - len(footer) - 2
+	footerWidth := paletteWidth - style.StringWidth(footer) - 2
 	if footerWidth < 0 {
 		footerWidth = 0
 	}

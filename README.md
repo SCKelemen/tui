@@ -1,5 +1,14 @@
-# tui
+## ⚠️ Deprecated — Use v2
 
+This package (`github.com/SCKelemen/tui`) is deprecated.
+Use [`github.com/SCKelemen/tui/v2`](./v2/) instead.
+
+v2 provides the same components organized into focused sub-packages:
+`agent`, `chart`, `chat`, `container`, `display`, `input`, `nav`, `selection`, `style`
+
+See the [v2 README](./v2/README.md) for migration guide and API reference.
+
+# tui
 Terminal UI component library built on Bubble Tea with design token theming.
 
 ## Installation

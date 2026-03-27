@@ -147,6 +147,9 @@ func TestTreeIconsRendering(t *testing.T) {
 	if !strings.Contains(viewWithIcons, "📁") || !strings.Contains(viewWithIcons, "📄") {
 		t.Fatalf("expected icons in view, got:\n%s", viewWithIcons)
 	}
+	if !strings.Contains(viewWithIcons, "📁 root") || !strings.Contains(viewWithIcons, "📄 file") {
+		t.Fatalf("expected icons before labels, got:\n%s", viewWithIcons)
+	}
 
 	withoutIcons := NewTree(roots, WithTreeShowIcons(false))
 	viewWithoutIcons := withoutIcons.View()
@@ -155,6 +158,35 @@ func TestTreeIconsRendering(t *testing.T) {
 	}
 }
 
+func TestTreeIconBeforeLabel(t *testing.T) {
+	roots := []*TreeNode{
+		{
+			Label:    "tasks",
+			Expanded: true,
+			Children: []*TreeNode{{Label: "done", Icon: "✓"}},
+		},
+	}
+
+	tree := NewTree(roots, WithTreeShowIcons(true), WithTreeShowGuides(true))
+	view := tree.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 lines, got:\n%s", view)
+	}
+
+	childLine := lines[1]
+	iconIndex := strings.Index(childLine, "✓")
+	labelIndex := strings.Index(childLine, "done")
+	if iconIndex == -1 || labelIndex == -1 {
+		t.Fatalf("expected child line to include icon and label, got %q", childLine)
+	}
+	if iconIndex > labelIndex {
+		t.Fatalf("expected icon before label, got %q", childLine)
+	}
+	if !strings.Contains(childLine, "└─") {
+		t.Fatalf("expected guide prefix before icon and label, got %q", childLine)
+	}
+}
 func TestTreeExpandAllAndCollapseAll(t *testing.T) {
 	tree := NewTree(sampleTree())
 

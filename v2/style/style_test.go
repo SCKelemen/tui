@@ -16,6 +16,10 @@ func TestDesignTokensForTheme(t *testing.T) {
 	}{
 		{name: "midnight", theme: "midnight", expected: "midnight", assertMsg: "midnight should resolve to midnight theme"},
 		{name: "nord", theme: "nord", expected: "nord", assertMsg: "nord should resolve to nord theme"},
+		{name: "paper", theme: "paper", expected: "paper", assertMsg: "paper should resolve to paper theme"},
+		{name: "wrapped", theme: "wrapped", expected: "wrapped", assertMsg: "wrapped should resolve to wrapped theme"},
+		{name: "case insensitive", theme: "NoRd", expected: "nord", assertMsg: "mixed case should resolve to nord theme"},
+		{name: "trim spaces", theme: "  midnight  ", expected: "midnight", assertMsg: "surrounding whitespace should be ignored"},
 		{name: "default", theme: "default", expected: "default", assertMsg: "default should resolve to default theme"},
 		{name: "empty", theme: "", expected: "default", assertMsg: "empty should resolve to default theme"},
 	}
@@ -94,6 +98,48 @@ func TestAnsiColorFromHexInvalidInput(t *testing.T) {
 	}
 }
 
+func TestANSIBackgroundColorFromHex(t *testing.T) {
+	tests := []struct {
+		name     string
+		hex      string
+		expected string
+	}{
+		{name: "orange", hex: "#FF5733", expected: "\033[48;2;255;87;51m"},
+		{name: "black", hex: "#000000", expected: "\033[48;2;0;0;0m"},
+		{name: "white", hex: "#FFFFFF", expected: "\033[48;2;255;255;255m"},
+		{name: "trim spaces", hex: "  #00ff00  ", expected: "\033[48;2;0;255;0m"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ANSIBackgroundColorFromHex(tc.hex)
+			if got != tc.expected {
+				t.Fatalf("ANSIBackgroundColorFromHex(%q) = %q, want %q", tc.hex, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestANSIBackgroundColorFromHexInvalidInput(t *testing.T) {
+	tests := []struct {
+		name string
+		hex  string
+	}{
+		{name: "empty", hex: ""},
+		{name: "no hash", hex: "FF5733"},
+		{name: "too short", hex: "#FFF"},
+		{name: "non-hex", hex: "#GGGGGG"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ANSIBackgroundColorFromHex(tc.hex)
+			if got != "" {
+				t.Fatalf("ANSIBackgroundColorFromHex(%q) = %q, want empty string", tc.hex, got)
+			}
+		})
+	}
+}
 func TestANSIConstants(t *testing.T) {
 	constants := map[string]string{
 		"ANSIReset":     ANSIReset,

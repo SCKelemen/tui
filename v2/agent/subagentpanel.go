@@ -53,16 +53,16 @@ type SubagentPanel struct {
 
 	width int
 
-	spinner       Spinner
-	spinnerIdx    int
-	lastTick      time.Time
-	focused       bool
-	designTokens  *design.DesignTokens
-	runningColor  string
-	successColor  string
-	errorColor    string
-	abortedColor  string
-	footerColor   string
+	spinner        Spinner
+	spinnerIdx     int
+	lastTick       time.Time
+	focused        bool
+	designTokens   *design.DesignTokens
+	runningColor   string
+	successColor   string
+	errorColor     string
+	abortedColor   string
+	footerColor    string
 	connectorColor string
 }
 
@@ -128,20 +128,20 @@ type subagentPanelTickMsg struct {
 // NewSubagentPanel creates a new SubagentPanel.
 func NewSubagentPanel(opts ...SubagentPanelOption) *SubagentPanel {
 	p := &SubagentPanel{
-		title:         "",
-		status:        SubagentRunning,
-		tools:         make([]SubagentTool, 0),
-		visibleTools:  8,
-		hiddenCount:   0,
-		elapsed:       0,
-		width:         36,
-		spinner:       SpinnerCircleQuarters,
-		spinnerIdx:    0,
-		runningColor:  style.ANSICyan,
-		successColor:  style.ANSIGreen,
-		errorColor:    style.ANSIRed,
-		abortedColor:  style.ANSIDim,
-		footerColor:   style.ANSIDim,
+		title:          "",
+		status:         SubagentRunning,
+		tools:          make([]SubagentTool, 0),
+		visibleTools:   8,
+		hiddenCount:    0,
+		elapsed:        0,
+		width:          36,
+		spinner:        SpinnerCircleQuarters,
+		spinnerIdx:     0,
+		runningColor:   style.ANSICyan,
+		successColor:   style.ANSIGreen,
+		errorColor:     style.ANSIRed,
+		abortedColor:   style.ANSIDim,
+		footerColor:    style.ANSIDim,
 		connectorColor: style.ANSIDim,
 	}
 
@@ -323,14 +323,13 @@ func (p *SubagentPanel) recomputeHiddenCount() {
 func (p *SubagentPanel) renderHeaderLine() string {
 	icon, plainIcon := p.renderStatusIcon()
 	prefixPlain := " " + plainIcon + " Subagent: "
-	available := p.width - len(prefixPlain)
+	available := p.width - style.StringWidth(prefixPlain)
 	if available < 0 {
 		available = 0
 	}
-	title := truncateString(p.title, available)
+	title := style.Truncate(p.title, available, "…")
 	return fmt.Sprintf(" %s Subagent: %s", icon, title)
 }
-
 func (p *SubagentPanel) renderStatusIcon() (string, string) {
 	switch p.status {
 	case SubagentRunning:
@@ -410,15 +409,12 @@ func (p *SubagentPanel) fitToWidth(line string) string {
 	if p.width <= 0 {
 		return line
 	}
-	if len(stripANSI(line)) <= p.width {
+	stripped := stripANSI(line)
+	if style.StringWidth(stripped) <= p.width {
 		return line
 	}
-	if p.width <= 3 {
-		return truncateANSI(line, p.width)
-	}
-	return truncateANSI(line, p.width-3) + "..."
+	return style.Truncate(stripped, p.width, "…")
 }
-
 func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return

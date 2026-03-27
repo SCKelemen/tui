@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
 // TestDiffBlockCreation tests default creation
 func TestDiffBlockCreation(t *testing.T) {
 	db := NewDiffBlock()
@@ -567,5 +567,64 @@ func TestDiffBlockGetSelectionManager(t *testing.T) {
 
 	if db.GetSelectionManager() != db.selMgr {
 		t.Error("GetSelectionManager should return the underlying selection manager")
+	}
+}
+
+func TestDiffBlockWithLanguage(t *testing.T) {
+	db := NewDiffBlock(
+		WithDiffBlockLanguage(SyntaxLanguageGo),
+		WithDiffLines([]DiffLine{{Type: DiffUnchanged, Content: "func main() {}", LineNum: 1}}),
+		WithDiffExpanded(true),
+	)
+
+	view := db.View()
+	keyword := style.ANSIBold + style.ANSIBlue + "func" + style.ANSIReset
+	if !strings.Contains(view, keyword) {
+		t.Fatalf("expected highlighted keyword in view: %q", view)
+	}
+}
+
+func TestDiffBlockWithFilename(t *testing.T) {
+	db := NewDiffBlock(
+		WithDiffBlockFilename("main.go"),
+		WithDiffLines([]DiffLine{{Type: DiffUnchanged, Content: "func main() {}", LineNum: 1}}),
+		WithDiffExpanded(true),
+	)
+
+	if db.language != string(SyntaxLanguageGo) {
+		t.Fatalf("expected language %q, got %q", SyntaxLanguageGo, db.language)
+	}
+	if db.highlighter == nil {
+		t.Fatal("expected highlighter to be initialized from filename")
+	}
+
+	view := db.View()
+	keyword := style.ANSIBold + style.ANSIBlue + "func" + style.ANSIReset
+	if !strings.Contains(view, keyword) {
+		t.Fatalf("expected highlighted keyword in view: %q", view)
+	}
+}
+
+func TestDiffBlockHighlightPreservesDiffColors(t *testing.T) {
+	db := NewDiffBlock(
+		WithDiffBlockLanguage(SyntaxLanguageGo),
+		WithDiffLines([]DiffLine{
+			{Type: DiffAdded, Content: "func added() {}", LineNum: 1},
+			{Type: DiffRemoved, Content: "func removed() {}", LineNum: 2},
+		}),
+		WithDiffExpanded(true),
+	)
+
+	view := db.View()
+	if !strings.Contains(view, style.ANSIGreen+"+"+style.ANSIReset) {
+		t.Fatalf("expected added line prefix to keep green diff color: %q", view)
+	}
+	if !strings.Contains(view, style.ANSIRed+"-"+style.ANSIReset) {
+		t.Fatalf("expected removed line prefix to keep red diff color: %q", view)
+	}
+
+	keyword := style.ANSIBold + style.ANSIBlue + "func" + style.ANSIReset
+	if !strings.Contains(view, keyword) {
+		t.Fatalf("expected syntax highlighting to still be present: %q", view)
 	}
 }

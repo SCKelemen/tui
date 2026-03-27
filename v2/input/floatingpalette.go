@@ -343,19 +343,12 @@ func (fp *FloatingPalette) renderInputLine(contentWidth int) string {
 	cursor = style.ANSIInverse + cursor + style.ANSIReset
 
 	line := prefix + before + cursor + after
-	lineWidth := len(stripANSIFloatingPalette(line))
+	lineWidth := style.StringWidth(stripANSIFloatingPalette(line))
 	if lineWidth > contentWidth {
-		if contentWidth <= 3 {
-			return strings.Repeat(" ", contentWidth)
-		}
-		return truncateANSIFloatingPalette(line, contentWidth-3) + "..."
+		return style.Truncate(line, contentWidth, "…")
 	}
-	if lineWidth < contentWidth {
-		line += strings.Repeat(" ", contentWidth-lineWidth)
-	}
-	return line
+	return style.Pad(line, contentWidth)
 }
-
 func (fp *FloatingPalette) renderResults(contentWidth int) []string {
 	limit := minFloatingPalette(len(fp.filtered), fp.maxResults)
 	if limit <= 0 {
@@ -370,17 +363,12 @@ func (fp *FloatingPalette) renderResults(contentWidth int) []string {
 			line += fmt.Sprintf(" %s%s%s", style.ANSIDim, cmd.Shortcut, style.ANSIReset)
 		}
 
-		lineWidth := len(stripANSIFloatingPalette(line))
+		lineWidth := style.StringWidth(stripANSIFloatingPalette(line))
 		if lineWidth > contentWidth {
-			if contentWidth <= 3 {
-				line = strings.Repeat(" ", contentWidth)
-			} else {
-				line = truncateANSIFloatingPalette(line, contentWidth-3) + "..."
-			}
-		} else if lineWidth < contentWidth {
-			line += strings.Repeat(" ", contentWidth-lineWidth)
+			line = style.Truncate(line, contentWidth, "…")
+		} else {
+			line = style.Pad(line, contentWidth)
 		}
-
 		if i == fp.selectedIndex {
 			line = fp.selectedColor + style.ANSIBold + line + style.ANSIReset
 		}

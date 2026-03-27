@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	design "github.com/SCKelemen/design-system"
+	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -215,5 +217,77 @@ func TestSubagentGroupUpdateWindowSize(t *testing.T) {
 	g.Update(tea.WindowSizeMsg{Width: 95, Height: 40})
 	if g.width != 95 {
 		t.Fatalf("expected width updated to 95, got %d", g.width)
+	}
+}
+
+func TestSubagentGroupOptionsInitAndFocusPanel(t *testing.T) {
+	tokens := &design.DesignTokens{Theme: "custom"}
+	g := NewSubagentGroup(
+		WithSubagentGroupGap(-2),
+		WithSubagentGroupDesignTokens(tokens),
+		WithSubagentGroupTheme("midnight"),
+	)
+
+	if g.gap != 0 {
+		t.Fatalf("expected negative gap to clamp to 0, got %d", g.gap)
+	}
+	if g.designTokens == nil {
+		t.Fatal("expected design tokens to be set")
+	}
+
+	p1 := NewSubagentPanel(WithSubagentTitle("A"))
+	p2 := NewSubagentPanel(WithSubagentTitle("B"))
+	g.SetPanels([]*SubagentPanel{p1, p2})
+
+	g.FocusPanel(1)
+	if g.focusedPanel != 1 {
+		t.Fatalf("expected focusedPanel=1, got %d", g.focusedPanel)
+	}
+	g.FocusPanel(-1)
+	g.FocusPanel(99)
+	if g.focusedPanel != 1 {
+		t.Fatalf("expected invalid FocusPanel to be ignored, got %d", g.focusedPanel)
+	}
+
+	if cmd := g.Init(); cmd == nil {
+		t.Fatal("expected non-nil init command batch")
+	}
+
+	g.Blur()
+	if g.Focused() {
+		t.Fatal("expected group to blur")
+	}
+}
+
+func TestSubagentGroupViewAndUpdateEdgeCases(t *testing.T) {
+	g := NewSubagentGroup()
+	g.width = 0
+	if g.View() != "" {
+		t.Fatal("expected empty view at non-positive width")
+	}
+
+	g.width = 6
+	fitted := g.fitToWidth("123456789")
+	if !strings.Contains(fitted, "…") {
+		t.Fatalf("expected truncation for narrow group width, got %q", fitted)
+	}
+	g.width = 3
+	if got := g.fitToWidth("abcdef"); style.StringWidth(stripANSI(got)) != 3 {
+		t.Fatalf("expected width=3 truncation, got %q", got)
+	}
+	p1 := NewSubagentPanel(WithSubagentTitle("A"))
+	p2 := NewSubagentPanel(WithSubagentTitle("B"))
+	g.SetPanels([]*SubagentPanel{p1, p2})
+	g.focusedPanel = 9
+	if _, cmd := g.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}); cmd != nil {
+		t.Fatal("expected nil command for unhandled key with out-of-range index fallback")
+	}
+
+	g.SetPanels(nil)
+	if g.PanelCount() != 0 {
+		t.Fatal("expected SetPanels(nil) to clear panels")
+	}
+	if _, cmd := g.Update(tea.KeyMsg{Type: tea.KeyTab}); cmd != nil {
+		t.Fatal("expected nil command with no panels")
 	}
 }

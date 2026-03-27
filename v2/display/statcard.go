@@ -370,38 +370,19 @@ func (s *StatCard) renderSparkline(width int) string {
 }
 
 func (s *StatCard) truncate(str string, width int) string {
-	runes := []rune(str)
-	runeLen := len(runes)
-
-	if runeLen <= width {
-		return str + strings.Repeat(" ", width-runeLen)
+	if width <= 0 {
+		return ""
 	}
-	if width > 3 {
-		return string(runes[:width-3]) + "..."
+	truncated := style.Truncate(str, width, "...")
+	pad := width - style.StringWidth(truncated)
+	if pad > 0 {
+		return truncated + strings.Repeat(" ", pad)
 	}
-	if width > 0 {
-		return string(runes[:width])
-	}
-	return ""
+	return truncated
 }
 
 func (s *StatCard) visibleLength(str string) int {
-	inEscape := false
-	count := 0
-	for _, ch := range str {
-		if ch == '\033' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if ch == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-		count++
-	}
-	return count
+	return style.StringWidth(stripANSI(str))
 }
 
 func abs(x int) int {

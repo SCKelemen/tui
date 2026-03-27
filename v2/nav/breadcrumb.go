@@ -2,7 +2,6 @@ package nav
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
@@ -173,9 +172,8 @@ func (b *Breadcrumb) View() string {
 		if b.focused && i == b.selected {
 			st += underline
 		}
-		parts = append(parts, st+b.items[i].Label+reset)
+		parts = append(parts, st+b.displayLabel(b.items[i].Label)+reset)
 	}
-
 	if suffixEllipsis {
 		parts = append(parts, dim+"..."+reset)
 	}
@@ -273,7 +271,7 @@ func (b *Breadcrumb) visibleRange() (start int, end int, prefixEllipsis bool, su
 			if s > 0 {
 				candidate = "..." + b.separator + candidate
 			}
-			if utf8.RuneCountInString(candidate) <= b.width {
+			if style.StringWidth(candidate) <= b.width {
 				return s, len(b.items), s > 0, false
 			}
 		}
@@ -285,7 +283,7 @@ func (b *Breadcrumb) visibleRange() (start int, end int, prefixEllipsis bool, su
 		if e < len(b.items) {
 			candidate = candidate + b.separator + "..."
 		}
-		if len(candidate) <= b.width {
+		if style.StringWidth(candidate) <= b.width {
 			return 0, e, false, e < len(b.items)
 		}
 	}
@@ -296,7 +294,34 @@ func (b *Breadcrumb) visibleRange() (start int, end int, prefixEllipsis bool, su
 func (b *Breadcrumb) labelsJoined(items []BreadcrumbItem) string {
 	labels := make([]string, 0, len(items))
 	for _, item := range items {
-		labels = append(labels, item.Label)
+		labels = append(labels, b.displayLabel(item.Label))
 	}
 	return strings.Join(labels, b.separator)
+}
+
+func (b *Breadcrumb) displayLabel(label string) string {
+	maxWidth := b.labelWidthBudget()
+	if maxWidth <= 0 {
+		return label
+	}
+
+	if strings.Contains(label, "/") {
+		return style.ElidePath(label, maxWidth)
+	}
+	return style.Truncate(label, maxWidth, "…")
+}
+
+func (b *Breadcrumb) labelWidthBudget() int {
+	if b.width <= 0 {
+		return 0
+	}
+	itemCount := len(b.items)
+	if itemCount <= 0 {
+		itemCount = 1
+	}
+	budget := b.width / itemCount
+	if budget < 4 {
+		budget = 4
+	}
+	return budget
 }

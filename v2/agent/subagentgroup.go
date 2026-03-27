@@ -411,11 +411,9 @@ func (g *SubagentGroup) fitToWidth(line string) string {
 	if g.width <= 0 {
 		return line
 	}
-	if len(stripANSI(line)) <= g.width {
+	stripped := stripANSI(line)
+	if style.StringWidth(stripped) <= g.width {
 		return line
 	}
-	if g.width <= 3 {
-		return truncateANSI(line, g.width)
-	}
-	return truncateANSI(line, g.width-3) + "..."
+	return style.Truncate(stripped, g.width, "…")
 }

@@ -228,12 +228,11 @@ func (sc *ScrollContainer) View() string {
 		}
 
 		if contentWidth > 0 {
-			line = truncateANSI(line, contentWidth)
-			line += strings.Repeat(" ", max(0, contentWidth-len(stripANSI(line))))
+			line = style.Truncate(stripANSI(line), contentWidth, "…")
+			line += strings.Repeat(" ", max(0, contentWidth-style.StringWidth(stripANSI(line))))
 		} else {
 			line = ""
 		}
-
 		if withScrollbar {
 			line += sc.scrollbarAtRow(i, renderHeight)
 		}

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	design "github.com/SCKelemen/design-system"
+	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -198,7 +200,7 @@ func TestSubagentPanelTruncatedTitle(t *testing.T) {
 	if !strings.Contains(view, "Subagent: ") {
 		t.Fatalf("expected Subagent header, got:\n%s", view)
 	}
-	if !strings.Contains(view, "...") {
+	if !strings.Contains(view, "…") {
 		t.Fatalf("expected truncated title with ellipsis, got:\n%s", view)
 	}
 }
@@ -235,5 +237,87 @@ func TestSubagentPanelFocusManagement(t *testing.T) {
 	panel.Blur()
 	if panel.Focused() {
 		t.Fatal("panel should not be focused after Blur")
+	}
+}
+
+func TestSubagentPanelOptionsInitAndTickBehavior(t *testing.T) {
+	tokens := &design.DesignTokens{Accent: "#00ff00", Color: "#ff0000"}
+	panel := NewSubagentPanel(
+		WithSubagentVisibleTools(-3),
+		WithSubagentWidth(0),
+		WithSubagentDesignTokens(tokens),
+		WithSubagentTheme("midnight"),
+	)
+
+	if panel.visibleTools != 0 {
+		t.Fatalf("expected visibleTools clamp to 0, got %d", panel.visibleTools)
+	}
+	if panel.width != 36 {
+		t.Fatalf("expected invalid width to keep default 36, got %d", panel.width)
+	}
+	if panel.runningColor == "" || panel.footerColor == "" {
+		t.Fatal("expected theme/design tokens to apply colors")
+	}
+
+	if cmd := panel.Init(); cmd == nil {
+		t.Fatal("expected Init command while panel is running")
+	}
+
+	panel.SetStatus(SubagentCompleted)
+	panel.SetTools([]SubagentTool{{Name: "tool", Status: ToolRunning}})
+	if cmd := panel.Init(); cmd == nil {
+		t.Fatal("expected Init command when a tool is still running")
+	}
+
+	panel.SetTools(nil)
+	if len(panel.tools) != 0 {
+		t.Fatal("expected SetTools(nil) to clear tools")
+	}
+
+	panel.applyDesignTokens(nil)
+}
+
+func TestSubagentPanelRenderingHelpersAndEdgeCases(t *testing.T) {
+	panel := NewSubagentPanel(WithSubagentWidth(12), WithSubagentTitle("very long subagent title"))
+
+	panel.SetStatus(SubagentFailed)
+	if got := stripANSI(panel.renderToolIcon(ToolCompleted)); !strings.Contains(got, "✓") {
+		t.Fatalf("expected completed tool icon, got %q", got)
+	}
+	if got := stripANSI(panel.renderToolIcon(ToolFailed)); !strings.Contains(got, "✗") {
+		t.Fatalf("expected failed tool icon, got %q", got)
+	}
+	if got := stripANSI(panel.renderToolIcon(ToolStatus(99))); got != "·" {
+		t.Fatalf("expected default tool icon, got %q", got)
+	}
+
+	panel.spinner = Spinner{Frames: nil}
+	panel.SetStatus(SubagentRunning)
+	icon, plain := panel.renderStatusIcon()
+	if plain != "◐" || !strings.Contains(stripANSI(icon), "◐") {
+		t.Fatalf("expected running fallback icon, got plain=%q icon=%q", plain, icon)
+	}
+
+	panel.SetElapsed(-1 * time.Second)
+	if panel.elapsed != 0 {
+		t.Fatalf("expected negative elapsed to clamp to 0, got %v", panel.elapsed)
+	}
+	if got := formatSubagentDuration(-1 * time.Second); got != "0s" {
+		t.Fatalf("expected clamped duration format 0s, got %q", got)
+	}
+
+	panel.width = 3
+	if got := panel.fitToWidth("abcdef"); style.StringWidth(stripANSI(got)) != 3 {
+		t.Fatalf("expected width-3 truncation, got %q", got)
+	}
+	panel.width = 0
+	if panel.View() != "" {
+		t.Fatal("expected empty view at non-positive width")
+	}
+
+	panel.width = 18
+	header := stripANSI(panel.renderHeaderLine())
+	if !strings.Contains(header, "Subagent:") {
+		t.Fatalf("expected header content, got %q", header)
 	}
 }

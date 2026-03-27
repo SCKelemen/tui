@@ -101,22 +101,14 @@ func (t *TextInput) View() string {
 	lines := strings.Split(t.textarea.View(), "\n")
 	for _, line := range lines {
 		b.WriteString(style.ANSIDim + "│" + style.ANSIReset + " ")
-		b.WriteString(line)
-
-		// Pad to width
-		visualLen := len(stripANSITextInput(line))
-		if visualLen < t.width-4 {
-			b.WriteString(strings.Repeat(" ", t.width-4-visualLen))
-		}
-
+		b.WriteString(style.Pad(line, t.width-4))
 		b.WriteString(" " + style.ANSIDim + "│" + style.ANSIReset + "\n")
 	}
-
 	// Bottom border with hint
 	b.WriteString(style.ANSIDim + "└")
 	if t.focused {
 		hint := "Ctrl+J: send · Ctrl+D: clear"
-		hintLen := len(hint)
+		hintLen := style.StringWidth(hint)
 		if hintLen < t.width-4 {
 			b.WriteString(" \033[3m")
 			b.WriteString(hint)

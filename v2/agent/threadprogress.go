@@ -166,21 +166,21 @@ type threadProgressTickMsg struct{}
 // NewThreadProgress creates a new ThreadProgress component.
 func NewThreadProgress(opts ...ThreadProgressOption) *ThreadProgress {
 	tp := &ThreadProgress{
-		threads:         []*ThreadEntry{},
-		byID:            map[string]*ThreadEntry{},
-		selected:        0,
-		threadSpinner:   SpinnerDots,
-		iconSet:         IconSetCodex,
-		maxOutputLines:  0,
-		showElapsed:     true,
-		runningColor:    style.ANSICyan,
-		successColor:    style.ANSIGreen,
-		errorColor:      style.ANSIRed,
-		escalatedColor:  style.ANSIYellow,
-		labelColor:      style.ANSIReset,
-		timeColor:       style.ANSIDim,
-		connectorColor:  style.ANSIDim,
-		mutedColor:      style.ANSIDim,
+		threads:        []*ThreadEntry{},
+		byID:           map[string]*ThreadEntry{},
+		selected:       0,
+		threadSpinner:  SpinnerDots,
+		iconSet:        IconSetCodex,
+		maxOutputLines: 0,
+		showElapsed:    true,
+		runningColor:   style.ANSICyan,
+		successColor:   style.ANSIGreen,
+		errorColor:     style.ANSIRed,
+		escalatedColor: style.ANSIYellow,
+		labelColor:     style.ANSIReset,
+		timeColor:      style.ANSIDim,
+		connectorColor: style.ANSIDim,
+		mutedColor:     style.ANSIDim,
 	}
 
 	for _, opt := range opts {
@@ -533,15 +533,12 @@ func (tp *ThreadProgress) fitToWidth(line string) string {
 	if tp.width <= 0 {
 		return line
 	}
-	if len(stripANSI(line)) <= tp.width {
+	stripped := stripANSI(line)
+	if style.StringWidth(stripped) <= tp.width {
 		return line
 	}
-	if tp.width <= 3 {
-		return truncateANSI(line, tp.width)
-	}
-	return truncateANSI(line, tp.width-3) + "..."
+	return style.Truncate(stripped, tp.width, "…")
 }
-
 func (tp *ThreadProgress) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return

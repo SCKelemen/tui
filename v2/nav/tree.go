@@ -331,12 +331,12 @@ func (t *tree) renderNode(vn visibleTreeNode) string {
 		b.WriteString("  ")
 	}
 
+	label := vn.node.Label
 	if t.showIcons && vn.node.Icon != "" {
-		b.WriteString(vn.node.Icon)
-		b.WriteString(" ")
+		label = vn.node.Icon + " " + label
 	}
 
-	b.WriteString(vn.node.Label)
+	b.WriteString(label)
 	return b.String()
 }
 

@@ -1,5 +1,36 @@
 # Changelog
 
+## [v2.2.0] - 2025-03-27
+### Added
+- Comprehensive test suite: 30 test files across all 10 packages
+- 8 cross-package E2E integration tests
+- Style package unit tests (theme resolution, ANSI parsing, constants)
+- Coverage: 68-86% across all packages
+
+## [v2.1.0] - 2025-03-27
+### Added
+- Regex-based syntax highlighter for 11 languages (Go, JS, TS, Python, Rust, SQL, Shell, JSON, YAML, Markdown, Plain)
+- CodeBlock integration: WithCodeBlockLanguage, WithCodeBlockFilename
+- design-system ↔ SCKelemen/color bridge: TokenToColor, ColorToANSIFg/Bg, ThemeAccentColor, ThemeGradient
+- 4 dataviz terminal chart components: BarChart, LineChart, HeatMap, ScatterPlot
+- ANSIBlue style constant
+
+## [v2.0.0] - 2025-03-27
+### Changed
+- **BREAKING**: Module path changed to `github.com/SCKelemen/tui/v2`
+- All components reorganized into sub-packages:
+  - `agent/` — SubagentPanel, SubagentGroup, ThreadProgress
+  - `chart/` — ProgressBar, Sparkline
+  - `chat/` — ConversationView
+  - `container/` — SplitPane, Modal
+  - `display/` — CodeBlock, DiffBlock, ErrorFrame, FileCard, Toast, StatCard
+  - `input/` — TextInput, CommandPalette, FloatingPalette, Checklist
+  - `nav/` — TabBar, Breadcrumb, Tree, ScrollContainer
+  - `selection/` — SelectionManager, Clipboard (OSC 52)
+  - `style/` — ANSI constants, design token resolution
+- Root package exports Component interface and Application type
+- Shared ANSI/theme helpers centralized in style/ package
+
 ## [Unreleased] (v1.6.0)
 ### Added
 - ProgressBar with 4 styles and SCKelemen/color gradient support

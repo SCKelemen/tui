@@ -32,13 +32,14 @@ type DiffBlock struct {
 	height  int
 	focused bool
 
-	filename  string
-	operation string
-	summary   string
-	lines     []DiffLine
-	oldStart  int
-	newStart  int
-
+	filename    string
+	operation   string
+	summary     string
+	lines       []DiffLine
+	oldStart    int
+	newStart    int
+	language    string
+	highlighter *Highlighter
 	expanded    bool
 	showContext int
 	maxLines    int
@@ -50,7 +51,31 @@ type DiffBlock struct {
 type DiffBlockOption func(*DiffBlock)
 
 func WithDiffFilename(name string) DiffBlockOption { return func(db *DiffBlock) { db.filename = name } }
-func WithDiffOperation(op string) DiffBlockOption  { return func(db *DiffBlock) { db.operation = op } }
+
+func WithDiffBlockFilename(name string) DiffBlockOption {
+	return func(db *DiffBlock) {
+		db.filename = name
+		lang := DetectLanguage(name)
+		db.language = string(lang)
+		if lang == SyntaxLanguagePlain {
+			db.highlighter = nil
+			return
+		}
+		db.highlighter = NewHighlighter(lang)
+	}
+}
+
+func WithDiffBlockLanguage(lang SyntaxLanguage) DiffBlockOption {
+	return func(db *DiffBlock) {
+		db.language = string(lang)
+		if lang == SyntaxLanguagePlain {
+			db.highlighter = nil
+			return
+		}
+		db.highlighter = NewHighlighter(lang)
+	}
+}
+func WithDiffOperation(op string) DiffBlockOption { return func(db *DiffBlock) { db.operation = op } }
 func WithDiffSummary(summary string) DiffBlockOption {
 	return func(db *DiffBlock) { db.summary = summary }
 }
@@ -63,7 +88,6 @@ func WithDiffMaxLines(max int) DiffBlockOption { return func(db *DiffBlock) { db
 func WithDiffBlockMouseSelection(enabled bool) DiffBlockOption {
 	return func(db *DiffBlock) { db.mouseSelection = enabled }
 }
-
 func NewDiffBlock(opts ...DiffBlockOption) *DiffBlock {
 	db := &DiffBlock{
 		operation:   "Edit",
@@ -271,21 +295,51 @@ func (db *DiffBlock) visibleLines() ([]DiffLine, int, bool) {
 
 func (db *DiffBlock) renderDiffLine(line DiffLine, row int) string {
 	lineNumStr := fmt.Sprintf("%6d", line.LineNum)
-	content := line.Content
+	content := db.highlightDiffContent(line)
 	if db.mouseSelection && db.selMgr != nil && db.selMgr.HasSelection() {
 		content = db.selMgr.StyledLine(content, row)
 	}
 
 	switch line.Type {
 	case DiffAdded:
-		return fmt.Sprintf("  %s %s+%s%s\n", lineNumStr, style.ANSIGreen, content, style.ANSIReset)
+		return fmt.Sprintf("  %s %s+%s %s\n", lineNumStr, style.ANSIGreen, style.ANSIReset, db.tintHighlightedContent(content, style.ANSIGreen))
 	case DiffRemoved:
-		return fmt.Sprintf("  %s %s-%s%s\n", lineNumStr, style.ANSIRed, content, style.ANSIReset)
+		return fmt.Sprintf("  %s %s-%s %s\n", lineNumStr, style.ANSIRed, style.ANSIReset, db.tintHighlightedContent(content, style.ANSIRed))
 	case DiffUnchanged:
 		return fmt.Sprintf("  %s  %s\n", lineNumStr, content)
 	default:
 		return fmt.Sprintf("        %s\n", content)
 	}
+}
+
+func (db *DiffBlock) highlightDiffContent(line DiffLine) string {
+	content := line.Content
+	if db.highlighter == nil {
+		return content
+	}
+
+	trimmed := content
+	if len(trimmed) > 0 {
+		switch line.Type {
+		case DiffAdded:
+			if trimmed[0] == '+' {
+				trimmed = trimmed[1:]
+			}
+		case DiffRemoved:
+			if trimmed[0] == '-' {
+				trimmed = trimmed[1:]
+			}
+		}
+	}
+	return db.highlighter.HighlightLine(trimmed)
+}
+
+func (db *DiffBlock) tintHighlightedContent(content, diffColor string) string {
+	if content == "" || diffColor == "" {
+		return content
+	}
+	tinted := strings.ReplaceAll(content, style.ANSIReset, style.ANSIReset+diffColor)
+	return diffColor + tinted + style.ANSIReset
 }
 
 var _ tui.Component = (*DiffBlock)(nil)

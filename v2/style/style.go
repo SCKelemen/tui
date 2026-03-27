@@ -41,7 +41,12 @@ func DesignTokensForTheme(theme string) *design.DesignTokens {
 
 // ANSIColorFromHex converts a hex color to a 24-bit ANSI foreground color sequence.
 func ANSIColorFromHex(hex string) string {
-	s := strings.TrimSpace(strings.TrimPrefix(hex, "#"))
+	token := strings.TrimSpace(hex)
+	if !strings.HasPrefix(token, "#") {
+		return ""
+	}
+
+	s := strings.TrimPrefix(token, "#")
 	if len(s) != 6 {
 		return ""
 	}
@@ -59,7 +64,12 @@ func ANSIColorFromHex(hex string) string {
 
 // ANSIBackgroundColorFromHex converts a hex color to a 24-bit ANSI background color sequence.
 func ANSIBackgroundColorFromHex(hex string) string {
-	s := strings.TrimSpace(strings.TrimPrefix(hex, "#"))
+	token := strings.TrimSpace(hex)
+	if !strings.HasPrefix(token, "#") {
+		return ""
+	}
+
+	s := strings.TrimPrefix(token, "#")
 	if len(s) != 6 {
 		return ""
 	}

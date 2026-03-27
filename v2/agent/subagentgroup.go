@@ -13,13 +13,13 @@ import (
 
 // SubagentGroup renders multiple SubagentPanels in one horizontal row.
 type SubagentGroup struct {
-	panels []*SubagentPanel
-	width  int
-	gap    int
+	panels    []*SubagentPanel
+	width     int
+	gap       int
+	maxPerRow int
 
 	focused      bool
 	focusedPanel int
-
 	headerText string
 	footerText string
 	focusHint  string
@@ -41,6 +41,15 @@ func WithSubagentGroupGap(gap int) SubagentGroupOption {
 	}
 }
 
+// WithSubagentGroupMaxPerRow sets the max number of panels per row.
+func WithSubagentGroupMaxPerRow(n int) SubagentGroupOption {
+	return func(g *SubagentGroup) {
+		if n <= 0 {
+			n = 1
+		}
+		g.maxPerRow = n
+	}
+}
 // WithSubagentGroupDesignTokens applies design-system tokens.
 func WithSubagentGroupDesignTokens(tokens *design.DesignTokens) SubagentGroupOption {
 	return func(g *SubagentGroup) {
@@ -70,12 +79,12 @@ func NewSubagentGroup(opts ...SubagentGroupOption) *SubagentGroup {
 		panels:       []*SubagentPanel{},
 		width:        120,
 		gap:          1,
+		maxPerRow:    3,
 		focusedPanel: 0,
 		focusHint:    "",
 		designTokens: design.DefaultTheme(),
 		startTime:    time.Now(),
 	}
-
 	for _, opt := range opts {
 		opt(g)
 	}
@@ -244,11 +253,12 @@ func (g *SubagentGroup) View() string {
 
 	if g.IsAllCompleted() {
 		g.footerText = g.renderFooterText()
-		lines = append(lines, g.fitToWidth(g.footerText))
+		for _, footerLine := range strings.Split(g.footerText, "\n") {
+			lines = append(lines, g.fitToWidth(footerLine))
+		}
 	} else {
 		g.footerText = ""
 	}
-
 	return strings.Join(lines, "\n") + "\n"
 }
 
@@ -308,10 +318,10 @@ func (g *SubagentGroup) renderFooterText() string {
 	if seconds < 0 {
 		seconds = 0
 	}
-
-	return fmt.Sprintf("Finished running %d subagents %s (%ds) ✓", total, g.renderProgressBar(), seconds)
+	line1 := fmt.Sprintf(" Finished running %d subagents %s (%ds) ✓", total, g.renderProgressBar(), seconds)
+	line2 := fmt.Sprintf(" %s└ Gathering results…%s", style.ANSIDim, style.ANSIReset)
+	return line1 + "\n" + line2
 }
-
 func (g *SubagentGroup) renderProgressBar() string {
 	if len(g.panels) == 0 {
 		return ""
@@ -334,19 +344,44 @@ func (g *SubagentGroup) renderProgressBar() string {
 
 func (g *SubagentGroup) renderPanelRowLines() []string {
 	if len(g.panels) == 0 {
-		return []string{}
+		return nil
 	}
 
-	widths := g.computePanelWidths()
-	perPanel := make([][]string, len(g.panels))
+	var rows [][]*SubagentPanel
+	for i := 0; i < len(g.panels); i += g.maxPerRow {
+		end := i + g.maxPerRow
+		if end > len(g.panels) {
+			end = len(g.panels)
+		}
+		rows = append(rows, g.panels[i:end])
+	}
+
+	var allLines []string
+	for rowIdx, row := range rows {
+		if rowIdx > 0 {
+			allLines = append(allLines, "")
+		}
+		rowLines := g.renderSingleRow(row)
+		allLines = append(allLines, rowLines...)
+	}
+	return allLines
+}
+
+func (g *SubagentGroup) renderSingleRow(panels []*SubagentPanel) []string {
+	n := len(panels)
+	if n == 0 {
+		return nil
+	}
+
+	widths := g.computeRowWidths(n)
+	perPanel := make([][]string, n)
 	maxHeight := 0
 
-	for i, panel := range g.panels {
+	for i, panel := range panels {
 		if panel == nil {
 			perPanel[i] = []string{}
 			continue
 		}
-
 		panel.width = widths[i]
 		raw := strings.TrimSuffix(panel.View(), "\n")
 		if raw == "" {
@@ -354,7 +389,6 @@ func (g *SubagentGroup) renderPanelRowLines() []string {
 		} else {
 			perPanel[i] = strings.Split(raw, "\n")
 		}
-
 		if len(perPanel[i]) > maxHeight {
 			maxHeight = len(perPanel[i])
 		}
@@ -367,20 +401,18 @@ func (g *SubagentGroup) renderPanelRowLines() []string {
 	}
 
 	gap := strings.Repeat(" ", g.gap)
-	row := make([]string, 0, maxHeight)
+	result := make([]string, 0, maxHeight)
 	for lineIdx := 0; lineIdx < maxHeight; lineIdx++ {
-		parts := make([]string, 0, len(perPanel))
+		parts := make([]string, 0, n)
 		for panelIdx := range perPanel {
 			parts = append(parts, perPanel[panelIdx][lineIdx])
 		}
-		row = append(row, strings.Join(parts, gap))
+		result = append(result, strings.Join(parts, gap))
 	}
-
-	return row
+	return result
 }
 
-func (g *SubagentGroup) computePanelWidths() []int {
-	n := len(g.panels)
+func (g *SubagentGroup) computeRowWidths(n int) []int {
 	if n == 0 {
 		return nil
 	}
@@ -406,7 +438,6 @@ func (g *SubagentGroup) computePanelWidths() []int {
 
 	return widths
 }
-
 func (g *SubagentGroup) fitToWidth(line string) string {
 	if g.width <= 0 {
 		return line

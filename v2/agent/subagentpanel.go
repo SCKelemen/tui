@@ -38,11 +38,11 @@ type SubagentTool struct {
 
 // SubagentPanel renders a single subagent panel.
 type SubagentPanel struct {
-	title string
+	title    string
+	thinking string
 
-	status SubagentStatus
-	tools  []SubagentTool
-
+	status       SubagentStatus
+	tools        []SubagentTool
 	visibleTools int
 	hiddenCount  int
 
@@ -117,6 +117,13 @@ func WithSubagentTheme(theme string) SubagentPanelOption {
 func WithSubagentModel(model string) SubagentPanelOption {
 	return func(p *SubagentPanel) {
 		p.modelName = model
+	}
+}
+
+// WithSubagentThinking sets prose/thinking text rendered under the header.
+func WithSubagentThinking(text string) SubagentPanelOption {
+	return func(p *SubagentPanel) {
+		p.thinking = text
 	}
 }
 
@@ -205,6 +212,18 @@ func (p *SubagentPanel) View() string {
 	lines = append(lines, strings.Repeat("▄", p.width))
 	lines = append(lines, p.fitToWidth(p.renderHeaderLine()))
 
+	if p.thinking != "" {
+		thinkLines := strings.Split(p.thinking, "\n")
+		for _, tl := range thinkLines {
+			trimmed := strings.TrimSpace(tl)
+			if trimmed == "" {
+				continue
+			}
+			line := fmt.Sprintf(" %s%s%s", style.ANSIDim, style.Truncate(trimmed, p.width-2, "…"), style.ANSIReset)
+			lines = append(lines, p.fitToWidth(line))
+		}
+	}
+
 	if p.hiddenCount > 0 {
 		hidden := fmt.Sprintf(" %s... +%d earlier tools%s", style.ANSIDim, p.hiddenCount, style.ANSIReset)
 		lines = append(lines, p.fitToWidth(hidden))
@@ -276,6 +295,11 @@ func (p *SubagentPanel) SetTokenCount(s string) {
 // SetCost sets cost text.
 func (p *SubagentPanel) SetCost(s string) {
 	p.cost = strings.TrimSpace(s)
+}
+
+// SetThinking sets prose/thinking text rendered under the header.
+func (p *SubagentPanel) SetThinking(text string) {
+	p.thinking = text
 }
 
 // AddTool appends a tool and recomputes hidden count.

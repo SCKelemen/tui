@@ -72,7 +72,7 @@ func TestSubagentGroupEqualHeightPadding(t *testing.T) {
 		t.Fatal("expected rendered panel row lines")
 	}
 
-	widths := g.computePanelWidths()
+	widths := g.computeRowWidths(len(g.panels))
 	p1.width = widths[0]
 	p2.width = widths[1]
 	p1Lines := strings.Split(strings.TrimSuffix(p1.View(), "\n"), "\n")
@@ -165,7 +165,7 @@ func TestSubagentGroupThreePanelEqualHeight(t *testing.T) {
 		t.Fatal("expected rendered panel row lines")
 	}
 
-	widths := g.computePanelWidths()
+	widths := g.computeRowWidths(len(g.panels))
 	columns := splitRenderedColumns(lines, widths, g.gap)
 	height := assertAllColumnsSameHeight(t, columns)
 
@@ -204,7 +204,7 @@ func TestSubagentGroupEmptyVsFullPanelHeight(t *testing.T) {
 		t.Fatal("expected rendered panel row lines")
 	}
 
-	widths := g.computePanelWidths()
+	widths := g.computeRowWidths(len(g.panels))
 	columns := splitRenderedColumns(lines, widths, g.gap)
 	_ = assertAllColumnsSameHeight(t, columns)
 }
@@ -220,7 +220,7 @@ func TestSubagentGroupHeightAfterDynamicUpdate(t *testing.T) {
 	g.SetPanels([]*SubagentPanel{p1, p2})
 
 	before := g.renderPanelRowLines()
-	beforeWidths := g.computePanelWidths()
+	beforeWidths := g.computeRowWidths(len(g.panels))
 	beforeColumns := splitRenderedColumns(before, beforeWidths, g.gap)
 	beforeHeight := assertAllColumnsSameHeight(t, beforeColumns)
 
@@ -233,7 +233,7 @@ func TestSubagentGroupHeightAfterDynamicUpdate(t *testing.T) {
 	})
 
 	after := g.renderPanelRowLines()
-	afterWidths := g.computePanelWidths()
+	afterWidths := g.computeRowWidths(len(g.panels))
 	afterColumns := splitRenderedColumns(after, afterWidths, g.gap)
 	afterHeight := assertAllColumnsSameHeight(t, afterColumns)
 
@@ -264,7 +264,7 @@ func TestSubagentGroupEqualHeightAcrossWidths(t *testing.T) {
 				t.Fatal("expected rendered panel row lines")
 			}
 
-			widths := g.computePanelWidths()
+			widths := g.computeRowWidths(len(g.panels))
 			columns := splitRenderedColumns(lines, widths, g.gap)
 			_ = assertAllColumnsSameHeight(t, columns)
 		})
@@ -288,7 +288,7 @@ func TestSubagentGroupSinglePanelHeight(t *testing.T) {
 		t.Fatal("expected rendered lines for single-panel group")
 	}
 
-	widths := g.computePanelWidths()
+	widths := g.computeRowWidths(len(g.panels))
 	columns := splitRenderedColumns(lines, widths, g.gap)
 	height := assertAllColumnsSameHeight(t, columns)
 	if height == 0 {
@@ -349,7 +349,7 @@ func TestSubagentGroupWidthDistribution(t *testing.T) {
 		NewSubagentPanel(),
 	})
 
-	widths := g.computePanelWidths()
+	widths := g.computeRowWidths(len(g.panels))
 	if len(widths) != 3 {
 		t.Fatalf("expected 3 widths, got %d", len(widths))
 	}

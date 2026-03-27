@@ -1,11 +1,11 @@
 package agent
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
-
 	design "github.com/SCKelemen/design-system"
 	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
@@ -92,6 +92,209 @@ func TestSubagentGroupEqualHeightPadding(t *testing.T) {
 	}
 }
 
+func splitRenderedColumns(lines []string, widths []int, gap int) [][]string {
+	columns := make([][]string, len(widths))
+
+	for _, line := range lines {
+		plainRunes := []rune(stripANSI(line))
+		start := 0
+
+		for i, width := range widths {
+			end := start + width
+			if start > len(plainRunes) {
+				start = end + gap
+				columns[i] = append(columns[i], "")
+				continue
+			}
+			if end > len(plainRunes) {
+				end = len(plainRunes)
+			}
+
+			columns[i] = append(columns[i], string(plainRunes[start:end]))
+			start = end + gap
+		}
+	}
+
+	return columns
+}
+
+func assertAllColumnsSameHeight(t *testing.T, columns [][]string) int {
+	t.Helper()
+
+	if len(columns) == 0 {
+		t.Fatal("expected at least one column")
+	}
+
+	height := len(columns[0])
+	for i := 1; i < len(columns); i++ {
+		if len(columns[i]) != height {
+			t.Fatalf("expected column %d height %d, got %d", i, height, len(columns[i]))
+		}
+	}
+
+	return height
+}
+
+func TestSubagentGroupThreePanelEqualHeight(t *testing.T) {
+	g := NewSubagentGroup(WithSubagentGroupGap(1))
+	g.width = 120
+
+	p0 := NewSubagentPanel(WithSubagentTitle("Zero"), WithSubagentVisibleTools(10))
+	p0.SetTools(nil)
+
+	p2 := NewSubagentPanel(WithSubagentTitle("Two"), WithSubagentVisibleTools(10))
+	p2.SetTools([]SubagentTool{
+		{Name: "t1", Status: ToolCompleted},
+		{Name: "t2", Status: ToolCompleted},
+	})
+
+	p5 := NewSubagentPanel(WithSubagentTitle("Five"), WithSubagentVisibleTools(10))
+	p5.SetTools([]SubagentTool{
+		{Name: "t1", Status: ToolCompleted},
+		{Name: "t2", Status: ToolCompleted},
+		{Name: "t3", Status: ToolCompleted},
+		{Name: "t4", Status: ToolCompleted},
+		{Name: "t5", Status: ToolCompleted},
+	})
+
+	panels := []*SubagentPanel{p0, p2, p5}
+	g.SetPanels(panels)
+
+	lines := g.renderPanelRowLines()
+	if len(lines) == 0 {
+		t.Fatal("expected rendered panel row lines")
+	}
+
+	widths := g.computePanelWidths()
+	columns := splitRenderedColumns(lines, widths, g.gap)
+	height := assertAllColumnsSameHeight(t, columns)
+
+	tallest := 0
+	for i, panel := range panels {
+		panel.width = widths[i]
+		panelLines := strings.Split(strings.TrimSuffix(panel.View(), "\n"), "\n")
+		if len(panelLines) > tallest {
+			tallest = len(panelLines)
+		}
+	}
+
+	if height != tallest {
+		t.Fatalf("expected equalized height to match tallest panel (%d), got %d", tallest, height)
+	}
+}
+
+func TestSubagentGroupEmptyVsFullPanelHeight(t *testing.T) {
+	g := NewSubagentGroup(WithSubagentGroupGap(1))
+	g.width = 80
+
+	empty := NewSubagentPanel(WithSubagentTitle("Empty"), WithSubagentVisibleTools(10))
+	empty.SetTools(nil)
+
+	full := NewSubagentPanel(WithSubagentTitle("Full"), WithSubagentVisibleTools(10))
+	full.SetTools([]SubagentTool{
+		{Name: "t1", Status: ToolCompleted},
+		{Name: "t2", Status: ToolCompleted},
+		{Name: "t3", Status: ToolCompleted},
+		{Name: "t4", Status: ToolCompleted},
+	})
+
+	g.SetPanels([]*SubagentPanel{empty, full})
+	lines := g.renderPanelRowLines()
+	if len(lines) == 0 {
+		t.Fatal("expected rendered panel row lines")
+	}
+
+	widths := g.computePanelWidths()
+	columns := splitRenderedColumns(lines, widths, g.gap)
+	_ = assertAllColumnsSameHeight(t, columns)
+}
+
+func TestSubagentGroupHeightAfterDynamicUpdate(t *testing.T) {
+	g := NewSubagentGroup(WithSubagentGroupGap(1))
+	g.width = 90
+
+	p1 := NewSubagentPanel(WithSubagentTitle("A"), WithSubagentVisibleTools(10))
+	p1.SetTools([]SubagentTool{{Name: "t1", Status: ToolCompleted}})
+	p2 := NewSubagentPanel(WithSubagentTitle("B"), WithSubagentVisibleTools(10))
+	p2.SetTools([]SubagentTool{{Name: "t1", Status: ToolCompleted}})
+	g.SetPanels([]*SubagentPanel{p1, p2})
+
+	before := g.renderPanelRowLines()
+	beforeWidths := g.computePanelWidths()
+	beforeColumns := splitRenderedColumns(before, beforeWidths, g.gap)
+	beforeHeight := assertAllColumnsSameHeight(t, beforeColumns)
+
+	p2.SetTools([]SubagentTool{
+		{Name: "t1", Status: ToolCompleted},
+		{Name: "t2", Status: ToolCompleted},
+		{Name: "t3", Status: ToolCompleted},
+		{Name: "t4", Status: ToolCompleted},
+		{Name: "t5", Status: ToolCompleted},
+	})
+
+	after := g.renderPanelRowLines()
+	afterWidths := g.computePanelWidths()
+	afterColumns := splitRenderedColumns(after, afterWidths, g.gap)
+	afterHeight := assertAllColumnsSameHeight(t, afterColumns)
+
+	if afterHeight <= beforeHeight {
+		t.Fatalf("expected updated height to grow after adding tools, before=%d after=%d", beforeHeight, afterHeight)
+	}
+}
+
+func TestSubagentGroupEqualHeightAcrossWidths(t *testing.T) {
+	g := NewSubagentGroup(WithSubagentGroupGap(1))
+
+	p1 := NewSubagentPanel(WithSubagentTitle("A"), WithSubagentVisibleTools(10))
+	p1.SetTools([]SubagentTool{{Name: "t1", Status: ToolCompleted}})
+	p2 := NewSubagentPanel(WithSubagentTitle("B"), WithSubagentVisibleTools(10))
+	p2.SetTools([]SubagentTool{
+		{Name: "t1", Status: ToolCompleted},
+		{Name: "t2", Status: ToolCompleted},
+		{Name: "t3", Status: ToolCompleted},
+		{Name: "t4", Status: ToolCompleted},
+	})
+	g.SetPanels([]*SubagentPanel{p1, p2})
+
+	for _, width := range []int{60, 80, 120} {
+		t.Run("width-"+strconv.Itoa(width), func(t *testing.T) {
+			g.width = width
+			lines := g.renderPanelRowLines()
+			if len(lines) == 0 {
+				t.Fatal("expected rendered panel row lines")
+			}
+
+			widths := g.computePanelWidths()
+			columns := splitRenderedColumns(lines, widths, g.gap)
+			_ = assertAllColumnsSameHeight(t, columns)
+		})
+	}
+}
+
+func TestSubagentGroupSinglePanelHeight(t *testing.T) {
+	g := NewSubagentGroup(WithSubagentGroupGap(1))
+	g.width = 70
+
+	p := NewSubagentPanel(WithSubagentTitle("Solo"), WithSubagentVisibleTools(10))
+	p.SetTools([]SubagentTool{
+		{Name: "t1", Status: ToolCompleted},
+		{Name: "t2", Status: ToolCompleted},
+		{Name: "t3", Status: ToolCompleted},
+	})
+	g.SetPanels([]*SubagentPanel{p})
+
+	lines := g.renderPanelRowLines()
+	if len(lines) == 0 {
+		t.Fatal("expected rendered lines for single-panel group")
+	}
+
+	widths := g.computePanelWidths()
+	columns := splitRenderedColumns(lines, widths, g.gap)
+	height := assertAllColumnsSameHeight(t, columns)
+	if height == 0 {
+		t.Fatal("expected non-zero height for single-panel group")
+	}
+}
 func TestSubagentGroupHeaderTextGeneration(t *testing.T) {
 	g := NewSubagentGroup(WithSubagentGroupFocusHint("Ctrl+O to focus"))
 	p1 := NewSubagentPanel(WithSubagentTitle("A"))

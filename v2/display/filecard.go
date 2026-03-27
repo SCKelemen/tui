@@ -178,7 +178,7 @@ func (c *FileCard) styledContent() string {
 
 func (c *FileCard) displayFilename() string {
 	const maxFilenameWidth = 80
-	return style.Truncate(c.filename, maxFilenameWidth, "…")
+	return style.ElidePath(c.filename, maxFilenameWidth)
 }
 
 var _ tui.Component = (*FileCard)(nil)

@@ -221,11 +221,16 @@ func (p *SubagentPanel) View() string {
 		if i == len(visible)-1 {
 			connector = "└"
 		}
-		line := fmt.Sprintf(" %s%s %s %s", p.connectorColor, connector, p.renderToolIcon(tool.Status), tool.Name)
+		plainPrefix := fmt.Sprintf(" %s %s ", connector, p.renderToolPlainIcon(tool.Status))
+		nameWidth := p.width - style.StringWidth(plainPrefix)
+		if nameWidth < 0 {
+			nameWidth = 0
+		}
+		toolName := smartElideToolName(tool.Name, nameWidth)
+		line := fmt.Sprintf(" %s%s %s %s", p.connectorColor, connector, p.renderToolIcon(tool.Status), toolName)
 		line += style.ANSIReset
 		lines = append(lines, p.fitToWidth(line))
 	}
-
 	lines = append(lines, p.fitToWidth(p.renderFooterLine()))
 	lines = append(lines, strings.Repeat("▀", p.width))
 
@@ -366,6 +371,21 @@ func (p *SubagentPanel) renderToolIcon(status ToolStatus) string {
 	}
 }
 
+func (p *SubagentPanel) renderToolPlainIcon(status ToolStatus) string {
+	switch status {
+	case ToolRunning:
+		if p.spinner.FrameCount() > 0 {
+			return p.spinner.GetFrame(p.spinnerIdx)
+		}
+		return "◐"
+	case ToolCompleted:
+		return "✓"
+	case ToolFailed:
+		return "✗"
+	default:
+		return "·"
+	}
+}
 func (p *SubagentPanel) renderFooterLine() string {
 	statusText := "Done in"
 	if p.status == SubagentRunning {
@@ -405,6 +425,37 @@ func formatSubagentDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm %ds", minutes, seconds)
 }
 
+func smartElideToolName(name string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	if !strings.Contains(name, "/") {
+		return style.Truncate(name, maxWidth, "…")
+	}
+
+	slashIdx := strings.Index(name, "/")
+	start := strings.LastIndex(name[:slashIdx+1], " ") + 1
+	end := len(name)
+	if tailSpace := strings.Index(name[slashIdx:], " "); tailSpace >= 0 {
+		end = slashIdx + tailSpace
+	}
+
+	prefix := name[:start]
+	pathPart := name[start:end]
+	suffix := name[end:]
+
+	pathWidth := maxWidth - style.StringWidth(prefix) - style.StringWidth(suffix)
+	if pathWidth <= 0 {
+		return style.Truncate(name, maxWidth, "…")
+	}
+
+	candidate := prefix + style.ElidePath(pathPart, pathWidth) + suffix
+	if style.StringWidth(candidate) <= maxWidth {
+		return candidate
+	}
+	return style.Truncate(candidate, maxWidth, "…")
+}
+
 func (p *SubagentPanel) fitToWidth(line string) string {
 	if p.width <= 0 {
 		return line
@@ -415,11 +466,11 @@ func (p *SubagentPanel) fitToWidth(line string) string {
 	}
 	return style.Truncate(stripped, p.width, "…")
 }
+
 func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return
 	}
-
 	accent := style.ANSIColorFromHex(tokens.Accent)
 	foreground := style.ANSIColorFromHex(tokens.Color)
 	if accent != "" {

@@ -83,7 +83,7 @@ func (e *ErrorFrame) View() string {
 		contentWidth = 1
 	}
 
-	titleText := style.Truncate(e.title, contentWidth, "…")
+	titleText := elideErrorFrameTitle(e.title, contentWidth)
 	messageLines := e.wrappedMessageLines(contentWidth)
 	if len(messageLines) == 0 {
 		messageLines = []string{""}
@@ -228,6 +228,16 @@ func (e *ErrorFrame) errorColor() string {
 		}
 	}
 	return style.ANSIRed
+}
+
+func elideErrorFrameTitle(title string, maxWidth int) string {
+	if strings.HasPrefix(title, "http") {
+		return style.ElideURL(title, maxWidth)
+	}
+	if strings.Contains(title, "/") {
+		return style.ElidePath(title, maxWidth)
+	}
+	return style.Truncate(title, maxWidth, "…")
 }
 
 func wrapLine(line string, width int) []string {

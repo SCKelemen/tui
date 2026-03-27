@@ -191,7 +191,7 @@ func (cp *CommandPalette) View() string {
 
 			if i == cp.selected {
 				b.WriteString(style.ANSIDim + "│" + style.ANSIReset + style.ANSIInverse + " ▸ ")
-				cmdLine := style.Pad(style.Truncate(cmd.Name, 30, "…"), 30)
+				cmdLine := style.Pad(style.TruncateMiddle(cmd.Name, 30, "…"), 30)
 				b.WriteString(cmdLine)
 
 				if cmd.Keybinding != "" {
@@ -209,7 +209,7 @@ func (cp *CommandPalette) View() string {
 				b.WriteString(style.ANSIReset + style.ANSIDim + "│" + style.ANSIReset + "\n")
 			} else {
 				b.WriteString(style.ANSIDim + "│" + style.ANSIReset + "   ")
-				cmdLine := style.Pad(style.Truncate(cmd.Name, 30, "…"), 30)
+				cmdLine := style.Pad(style.TruncateMiddle(cmd.Name, 30, "…"), 30)
 				b.WriteString(cmdLine)
 
 				if cmd.Keybinding != "" {

@@ -10,8 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// CodeBlock displays source code with line numbers, syntax highlighting (future), and collapse/expand
-// behavior.
+// CodeBlock displays source code with line numbers, syntax highlighting, and collapse/expand behavior.
 type CodeBlock struct {
 	width   int
 	height  int
@@ -20,11 +19,12 @@ type CodeBlock struct {
 	selMgr                *selection.SelectionManager
 	mouseSelectionEnabled bool
 
-	operation string
-	filename  string
-	summary   string
-	lines     []string
-	language  string
+	operation   string
+	filename    string
+	summary     string
+	lines       []string
+	language    string
+	highlighter *Highlighter
 
 	expanded    bool
 	maxLines    int
@@ -56,7 +56,39 @@ func WithCode(code string) CodeBlockOption {
 }
 
 func WithLanguage(lang string) CodeBlockOption {
-	return func(cb *CodeBlock) { cb.language = lang }
+	return func(cb *CodeBlock) {
+		cb.language = lang
+		parsed := parseSyntaxLanguage(lang)
+		if parsed == SyntaxLanguagePlain {
+			cb.highlighter = nil
+			return
+		}
+		cb.highlighter = NewHighlighter(parsed)
+	}
+}
+
+func WithCodeBlockLanguage(lang SyntaxLanguage) CodeBlockOption {
+	return func(cb *CodeBlock) {
+		cb.language = string(lang)
+		if lang == SyntaxLanguagePlain {
+			cb.highlighter = nil
+			return
+		}
+		cb.highlighter = NewHighlighter(lang)
+	}
+}
+
+func WithCodeBlockFilename(filename string) CodeBlockOption {
+	return func(cb *CodeBlock) {
+		cb.filename = filename
+		lang := DetectLanguage(filename)
+		if lang == SyntaxLanguagePlain {
+			cb.highlighter = nil
+			return
+		}
+		cb.language = string(lang)
+		cb.highlighter = NewHighlighter(lang)
+	}
 }
 
 func WithStartLine(line int) CodeBlockOption {
@@ -147,7 +179,7 @@ func (cb *CodeBlock) View() string {
 	b.WriteString(fmt.Sprintf("%s %s%s%s", icon, style.ANSIBold, cb.operation, style.ANSIReset))
 	headerLines := 1
 	if cb.filename != "" {
-		b.WriteString(fmt.Sprintf("(\033[36m%s%s)", cb.filename, style.ANSIReset))
+		b.WriteString(fmt.Sprintf("(%s%s%s)", style.ANSICyan, cb.filename, style.ANSIReset))
 	}
 	b.WriteString("\n")
 
@@ -182,7 +214,7 @@ func (cb *CodeBlock) getOperationIcon() string {
 	case "write", "create":
 		return style.ANSIGreen + "⏺" + style.ANSIReset
 	case "read", "view":
-		return "\033[34m⏺" + style.ANSIReset
+		return style.ANSIBlue + "⏺" + style.ANSIReset
 	case "edit", "update":
 		return style.ANSIYellow + "⏺" + style.ANSIReset
 	case "delete", "remove":
@@ -201,6 +233,9 @@ func (cb *CodeBlock) renderCollapsed() string {
 	for i := 0; i < linesToShow; i++ {
 		lineNum := cb.startLine + i
 		content := cb.lines[i]
+		if cb.highlighter != nil {
+			content = cb.highlighter.HighlightLine(content)
+		}
 		if cb.selMgr != nil && cb.selMgr.HasSelection() {
 			content = cb.selMgr.StyledLine(content, i)
 		}
@@ -223,6 +258,9 @@ func (cb *CodeBlock) renderExpanded() string {
 	for i := 0; i < linesToShow; i++ {
 		lineNum := cb.startLine + i
 		content := cb.lines[i]
+		if cb.highlighter != nil {
+			content = cb.highlighter.HighlightLine(content)
+		}
 		if cb.selMgr != nil && cb.selMgr.HasSelection() {
 			content = cb.selMgr.StyledLine(content, i)
 		}

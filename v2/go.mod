@@ -3,16 +3,21 @@ module github.com/SCKelemen/tui/v2
 go 1.25.4
 
 require (
+	github.com/SCKelemen/color v1.0.5
+	github.com/SCKelemen/dataviz v1.1.4
 	github.com/SCKelemen/design-system v1.0.2
+	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 )
 
 require (
-	github.com/SCKelemen/color v1.0.5 // indirect
+	github.com/SCKelemen/layout v1.1.3 // indirect
+	github.com/SCKelemen/svg v1.0.2 // indirect
+	github.com/SCKelemen/text v1.1.3 // indirect
+	github.com/SCKelemen/unicode v1.1.1 // indirect
 	github.com/SCKelemen/units v1.1.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/bubbles v1.0.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
@@ -31,7 +36,6 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/image v0.35.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.33.0 // indirect

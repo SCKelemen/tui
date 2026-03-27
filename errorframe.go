@@ -228,6 +228,7 @@ func (e *ErrorFrame) errorColor() string {
 	}
 	return ansiRed
 }
+
 func wrapLine(line string, width int) []string {
 	if width <= 0 {
 		return []string{line}

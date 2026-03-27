@@ -4,20 +4,21 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	design "github.com/SCKelemen/design-system"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // SelectableRegion defines the content area that can be selected.
 type SelectableRegion struct {
-	StartRow    int
-	EndRow      int
-	GutterWidth int
+	StartRow     int
+	EndRow       int
+	GutterWidth  int
 	ContentLines []string
 }
 
 // Selection stores the current selection coordinates.
 type Selection struct {
-	Active       bool
+	Active         bool
 	StartX, StartY int
 	EndX, EndY     int
 }
@@ -29,11 +30,33 @@ type SelectionManager struct {
 	offsetX      int
 	offsetY      int
 	hasSelection bool
+	designTokens *design.DesignTokens
+}
+
+// SelectionOption configures a SelectionManager.
+type SelectionOption func(*SelectionManager)
+
+// WithSelectionDesignTokens applies design tokens to selection rendering.
+func WithSelectionDesignTokens(tokens *design.DesignTokens) SelectionOption {
+	return func(sm *SelectionManager) {
+		sm.designTokens = tokens
+	}
+}
+
+// WithSelectionTheme applies a named design-system theme.
+func WithSelectionTheme(theme string) SelectionOption {
+	return func(sm *SelectionManager) {
+		sm.designTokens = designTokensForTheme(theme)
+	}
 }
 
 // NewSelectionManager creates a new selection manager.
-func NewSelectionManager() *SelectionManager {
-	return &SelectionManager{}
+func NewSelectionManager(opts ...SelectionOption) *SelectionManager {
+	sm := &SelectionManager{}
+	for _, opt := range opts {
+		opt(sm)
+	}
+	return sm
 }
 
 // SetRegion sets the selectable region.
@@ -160,7 +183,7 @@ func (sm *SelectionManager) IsSelected(row, col int) bool {
 	return true
 }
 
-// StyledLine applies reverse-video highlighting to selected spans on a line.
+// StyledLine applies highlighting to selected spans on a line.
 func (sm *SelectionManager) StyledLine(line string, row int) string {
 	if !sm.hasSelection || line == "" {
 		return line
@@ -169,24 +192,34 @@ func (sm *SelectionManager) StyledLine(line string, row int) string {
 	reverseOn := string([]byte{0x1b}) + "[7m"
 	reverseOff := string([]byte{0x1b}) + "[27m"
 
+	onCode := reverseOn
+	offCode := reverseOff
+	if sm.designTokens != nil {
+		fg := ansiColorFromHex(sm.designTokens.Color)
+		bg := ansiBackgroundColorFromHex(sm.designTokens.Accent)
+		if bg != "" {
+			onCode = fg + bg
+			offCode = string([]byte{0x1b}) + "[39m" + string([]byte{0x1b}) + "[49m"
+		}
+	}
+
 	var b strings.Builder
 	selected := false
-
 	for col, r := range []rune(line) {
 		currentSelected := sm.IsSelected(row, col)
 		if currentSelected && !selected {
-			b.WriteString(reverseOn)
+			b.WriteString(onCode)
 			selected = true
 		}
 		if !currentSelected && selected {
-			b.WriteString(reverseOff)
+			b.WriteString(offCode)
 			selected = false
 		}
 		b.WriteRune(r)
 	}
 
 	if selected {
-		b.WriteString(reverseOff)
+		b.WriteString(offCode)
 	}
 
 	return b.String()

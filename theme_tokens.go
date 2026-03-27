@@ -39,3 +39,20 @@ func ansiColorFromHex(hex string) string {
 	b := value & 0xFF
 	return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
 }
+
+func ansiBackgroundColorFromHex(hex string) string {
+	s := strings.TrimSpace(strings.TrimPrefix(hex, "#"))
+	if len(s) != 6 {
+		return ""
+	}
+
+	value, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		return ""
+	}
+
+	r := (value >> 16) & 0xFF
+	g := (value >> 8) & 0xFF
+	b := value & 0xFF
+	return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
+}

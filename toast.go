@@ -290,13 +290,14 @@ func (t *Toast) applyDesignTokens(tokens *design.DesignTokens) {
 		return
 	}
 
-	foreground := ansiColorFromHex(tokens.Color)
-	accent := ansiColorFromHex(tokens.Accent)
-	if foreground != "" {
+	if foreground := ansiColorFromHex(tokens.Color); foreground != "" {
 		t.textColor = foreground
 	}
-	if accent != "" {
+	if accent := ansiColorFromHex(tokens.Accent); accent != "" {
 		t.infoColor = accent
+		t.successColor = accent
+		t.warningColor = accent
+		t.errorColor = accent
 	}
 }
 

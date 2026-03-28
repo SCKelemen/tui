@@ -221,7 +221,6 @@ func (p *SubagentPanel) View() string {
 
 	var lines []string
 
-	lines = append(lines, strings.Repeat("▄", p.width))
 	lines = append(lines, p.fitToWidth(p.renderHeaderLine()))
 
 	if p.thinking != "" {
@@ -275,7 +274,6 @@ func (p *SubagentPanel) View() string {
 		lines = append(lines, p.fitToWidth(line))
 	}
 	lines = append(lines, p.fitToWidth(p.renderFooterLine()))
-	lines = append(lines, strings.Repeat("▀", p.width))
 
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -446,24 +444,37 @@ func (p *SubagentPanel) renderFooterLine() string {
 	dur := formatSubagentDuration(p.elapsed)
 	meta := p.buildMetaSuffix()
 
-	var statusPart string
+	var leftPlain, left string
 	switch p.status {
 	case SubagentCompleted:
-		statusPart = fmt.Sprintf("%sDone%s %sin %s%s", p.successBrightColor, style.ANSIReset, p.successMutedColor, dur, style.ANSIReset)
+		leftPlain = "Done in " + dur
+		left = fmt.Sprintf("%sDone%s %sin %s%s", p.successBrightColor, style.ANSIReset, p.successMutedColor, dur, style.ANSIReset)
 	case SubagentFailed:
-		statusPart = fmt.Sprintf("%sFailed%s %safter %s%s", p.errorBrightColor, style.ANSIReset, p.errorMutedColor, dur, style.ANSIReset)
+		leftPlain = "Failed after " + dur
+		left = fmt.Sprintf("%sFailed%s %safter %s%s", p.errorBrightColor, style.ANSIReset, p.errorMutedColor, dur, style.ANSIReset)
 	case SubagentAborted:
-		statusPart = fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		leftPlain = "Aborted after " + dur
+		left = fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
 	default:
-		statusPart = fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		leftPlain = "Working… " + dur
+		left = fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
 	}
 
-	if meta != "" {
-		return fmt.Sprintf(" %s %s%s%s", statusPart, p.footerColor, meta, style.ANSIReset)
+	if meta == "" {
+		return " " + left
 	}
-	return " " + statusPart
+
+	// Right-justify metadata: " " + left + gap + meta + " "
+	leftWidth := style.StringWidth(leftPlain) + 1 // +1 for leading space
+	metaPlain := stripANSI(meta)
+	metaWidth := style.StringWidth(metaPlain) + 1 // +1 for trailing space
+	gap := p.width - leftWidth - metaWidth
+	if gap < 1 {
+		gap = 1
+	}
+
+	return fmt.Sprintf(" %s%s%s%s%s ", left, strings.Repeat(" ", gap), p.footerColor, meta, style.ANSIReset)
 }
-
 func (p *SubagentPanel) buildMetaSuffix() string {
 	var parts []string
 	if p.modelName != "" {

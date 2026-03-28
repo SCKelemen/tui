@@ -158,16 +158,11 @@ func TestSubagentPanelBorders(t *testing.T) {
 		t.Fatalf("expected at least two lines in view")
 	}
 
-	expectedTop := strings.Repeat("▄", 20)
-	expectedBottom := strings.Repeat("▀", 20)
-	if stripANSI(lines[0]) != expectedTop {
-		t.Errorf("top border mismatch\nexpected: %q\nactual:   %q", expectedTop, stripANSI(lines[0]))
-	}
-	if stripANSI(lines[len(lines)-1]) != expectedBottom {
-		t.Errorf("bottom border mismatch\nexpected: %q\nactual:   %q", expectedBottom, stripANSI(lines[len(lines)-1]))
+	view := stripANSI(panel.View())
+	if strings.Contains(view, "▄") || strings.Contains(view, "▀") {
+		t.Fatalf("expected no top/bottom border characters, got:\n%s", view)
 	}
 }
-
 func TestSubagentPanelFooterFormatting(t *testing.T) {
 	panel := NewSubagentPanel(
 		WithSubagentTitle("Task"),
@@ -180,17 +175,22 @@ func TestSubagentPanelFooterFormatting(t *testing.T) {
 	panel.SetCost("$0.41")
 
 	view := stripANSI(panel.View())
-	if !strings.Contains(view, "Done in 2m 30s gpt-5.3-codex · 235k · $0.41") {
-		t.Fatalf("expected completed footer format, got:\n%s", view)
+	if !strings.Contains(view, "Done in 2m 30s") {
+		t.Fatalf("expected 'Done in 2m 30s' in footer, got:\n%s", view)
+	}
+	if !strings.Contains(view, "gpt-5.3-codex · 235k · $0.41") {
+		t.Fatalf("expected metadata on right side of footer, got:\n%s", view)
 	}
 
 	panel.SetStatus(SubagentRunning)
 	view = stripANSI(panel.View())
-	if !strings.Contains(view, "Working… 2m 30s gpt-5.3-codex · 235k · $0.41") {
-		t.Fatalf("expected running footer format, got:\n%s", view)
+	if !strings.Contains(view, "Working…") {
+		t.Fatalf("expected 'Working…' in footer, got:\n%s", view)
+	}
+	if !strings.Contains(view, "gpt-5.3-codex · 235k · $0.41") {
+		t.Fatalf("expected metadata on right side of running footer, got:\n%s", view)
 	}
 }
-
 func TestSubagentPanelTruncatedTitle(t *testing.T) {
 	panel := NewSubagentPanel(
 		WithSubagentWidth(26),

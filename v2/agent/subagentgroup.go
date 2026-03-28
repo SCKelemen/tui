@@ -400,19 +400,18 @@ func (g *SubagentGroup) renderSingleRow(panels []*SubagentPanel) []string {
 		if deficit <= 0 {
 			continue
 		}
-		// The last line is the bottom border (▀▀▀).
-		// Insert padding lines before it so the box grows uniformly.
+		// The last line is the footer (status + metadata).
+		// Insert padding before it so the footer stays pinned to the bottom.
 		if len(lines) >= 2 {
-			bottomBorder := lines[len(lines)-1]
+			footer := lines[len(lines)-1]
 			content := lines[:len(lines)-1]
 			pad := make([]string, deficit)
 			for j := range pad {
 				pad[j] = strings.Repeat(" ", widths[i])
 			}
 			perPanel[i] = append(content, pad...)
-			perPanel[i] = append(perPanel[i], bottomBorder)
+			perPanel[i] = append(perPanel[i], footer)
 		} else {
-			// Fallback — just append
 			for len(perPanel[i]) < maxHeight {
 				perPanel[i] = append(perPanel[i], strings.Repeat(" ", widths[i]))
 			}
@@ -429,7 +428,6 @@ func (g *SubagentGroup) renderSingleRow(panels []*SubagentPanel) []string {
 	}
 	return result
 }
-
 func (g *SubagentGroup) computeRowWidths(n int) []int {
 	if n == 0 {
 		return nil

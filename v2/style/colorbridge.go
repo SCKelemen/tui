@@ -92,3 +92,56 @@ func toByte(v float64) int {
 	}
 	return int(math.Round(v * 255))
 }
+
+// ShimmerText applies a sweeping highlight effect across text.
+// phase is 0.0-1.0, representing the position of the highlight window.
+// The highlight slides from left to right across the visible characters.
+func ShimmerText(text string, baseHex string, highlightHex string, phase float64) string {
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return text
+	}
+
+	baseColor, err := TokenToColor(baseHex)
+	if err != nil {
+		return text
+	}
+	highlightColor, err := TokenToColor(highlightHex)
+	if err != nil {
+		return text
+	}
+
+	br, bg, bb, _ := baseColor.RGBA()
+	hr, hg, hb, _ := highlightColor.RGBA()
+
+	n := len(runes)
+	// The highlight center position sweeps across the text
+	center := phase * float64(n)
+	// Highlight window half-width (in characters)
+	halfWidth := 4.0
+	if float64(n) < halfWidth*2 {
+		halfWidth = float64(n) / 2.0
+	}
+
+	var sb strings.Builder
+	for i, r := range runes {
+		// Distance from the highlight center, normalized to 0-1
+		dist := math.Abs(float64(i)-center) / halfWidth
+		if dist > 1.0 {
+			dist = 1.0
+		}
+		// Smooth falloff: 1.0 at center, 0.0 at edges
+		t := 1.0 - dist
+		t = t * t // quadratic falloff for smoother shimmer
+
+		// Interpolate between base and highlight
+		cr := br + (hr-br)*t
+		cg := bg + (hg-bg)*t
+		cb := bb + (hb-bb)*t
+
+		sb.WriteString(fmt.Sprintf("\033[38;2;%d;%d;%dm", toByte(cr), toByte(cg), toByte(cb)))
+		sb.WriteRune(r)
+	}
+	sb.WriteString(ANSIReset)
+	return sb.String()
+}

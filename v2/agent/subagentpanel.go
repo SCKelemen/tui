@@ -56,20 +56,22 @@ type SubagentPanel struct {
 
 	width int
 
-	spinner            spinner.Spinner
-	spinnerIdx         int
-	lastTick           time.Time
-	focused            bool
-	designTokens       *design.DesignTokens
-	runningColor       string
-	successBrightColor string // checkmarks, dots, 'Done'
-	successMutedColor  string // durations, secondary success metadata
-	errorBrightColor   string // crosses, failure dots
-	errorMutedColor    string // failure durations, secondary error metadata
-	abortedColor       string
-	footerColor        string
-	connectorColor     string
-	surfaceColor       string // hex for Bg() on content lines and Fg() on borders
+	spinner             spinner.Spinner
+	spinnerIdx          int
+	lastTick            time.Time
+	focused             bool
+	designTokens        *design.DesignTokens
+	runningColor        string
+	successBrightColor  string // checkmarks, dots, 'Done'
+	successMutedColor   string // durations, secondary success metadata
+	errorBrightColor    string // crosses, failure dots
+	errorMutedColor     string // failure durations, secondary error metadata
+	abortedColor        string
+	footerColor         string
+	connectorColor      string
+	surfaceColor        string // hex for Bg() on content lines and Fg() on borders
+	shimmerBaseHex      string // base color for shimmer (muted)
+	shimmerHighlightHex string // highlight color for shimmer sweep
 }
 
 // SubagentPanelOption configures a SubagentPanel.
@@ -137,6 +139,18 @@ func WithSubagentSpinner(s spinner.Spinner) SubagentPanelOption {
 func WithSubagentThinking(text string) SubagentPanelOption {
 	return func(p *SubagentPanel) {
 		p.thinking = text
+	}
+}
+
+// WithShimmerColors configures the shimmer base and highlight hex colors.
+func WithShimmerColors(baseHex, highlightHex string) SubagentPanelOption {
+	return func(p *SubagentPanel) {
+		if baseHex != "" {
+			p.shimmerBaseHex = baseHex
+		}
+		if highlightHex != "" {
+			p.shimmerHighlightHex = highlightHex
+		}
 	}
 }
 
@@ -444,8 +458,17 @@ func (p *SubagentPanel) renderHeaderLine() string {
 		available = 0
 	}
 	title := style.Truncate(p.title, available, "…")
+
+	// Apply shimmer to title text when running
+	if p.status == SubagentRunning && p.shimmerBaseHex != "" && p.shimmerHighlightHex != "" {
+		// Derive phase from spinner index for smooth animation
+		phase := float64(p.spinnerIdx%60) / 60.0
+		title = style.ShimmerText(title, p.shimmerBaseHex, p.shimmerHighlightHex, phase)
+	}
+
 	return fmt.Sprintf(" %s Subagent: %s", icon, title)
 }
+
 func (p *SubagentPanel) renderStatusIcon() (string, string) {
 	switch p.status {
 	case SubagentRunning:
@@ -514,9 +537,14 @@ func (p *SubagentPanel) renderFooterLine() string {
 		left = fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
 	default:
 		leftPlain = "Working… " + dur
-		left = fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		workingText := "Working… " + dur
+		if p.shimmerBaseHex != "" && p.shimmerHighlightHex != "" {
+			phase := float64(p.spinnerIdx%60) / 60.0
+			left = style.ShimmerText(workingText, p.shimmerBaseHex, p.shimmerHighlightHex, phase)
+		} else {
+			left = fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		}
 	}
-
 	if meta == "" {
 		return " " + left
 	}
@@ -760,5 +788,18 @@ func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 	}
 	if v := strings.TrimSpace(tokens.SurfaceRaised); v != "" {
 		p.surfaceColor = v
+	}
+
+	dt := tokens
+	// Shimmer colors: use accent for highlight, muted foreground for base
+	if dt.Accent != "" {
+		p.shimmerHighlightHex = dt.Accent
+	} else {
+		p.shimmerHighlightHex = "#FF7F00"
+	}
+	if dt.Color != "" {
+		p.shimmerBaseHex = dt.Color
+	} else {
+		p.shimmerBaseHex = "#6B7280"
 	}
 }

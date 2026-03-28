@@ -309,16 +309,20 @@ func (p *SubagentPanel) View() string {
 }
 
 // wrapBg wraps a content line with a background color, padding to full width.
+// It replaces all inline resets with reset+re-apply-bg so the background persists.
 func (p *SubagentPanel) wrapBg(bgEsc string, line string) string {
-	// Pad the line to fill the full panel width on the elevated background
+	// Replace every reset inside the line with reset + re-apply background
+	// so the elevated surface color persists across inline color changes.
+	patched := strings.ReplaceAll(line, style.ANSIReset, style.ANSIReset+bgEsc)
+
+	// Pad to fill the full panel width on the elevated background
 	stripped := stripANSI(line)
 	pad := p.width - style.StringWidth(stripped)
 	if pad < 0 {
 		pad = 0
 	}
-	return bgEsc + line + strings.Repeat(" ", pad) + style.ANSIReset
+	return bgEsc + patched + strings.Repeat(" ", pad) + style.ANSIReset
 }
-
 // Focus marks the panel as focused.
 func (p *SubagentPanel) Focus() {
 	p.focused = true

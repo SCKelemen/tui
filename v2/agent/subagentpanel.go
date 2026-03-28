@@ -485,12 +485,15 @@ func (p *SubagentPanel) fitToWidth(line string) string {
 		return line
 	}
 	stripped := stripANSI(line)
-	if style.StringWidth(stripped) <= p.width {
-		return line
+	w := style.StringWidth(stripped)
+	if w > p.width {
+		return style.Truncate(stripped, p.width, "…")
 	}
-	return style.Truncate(stripped, p.width, "…")
+	if w < p.width {
+		return line + strings.Repeat(" ", p.width-w)
+	}
+	return line
 }
-
 func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return

@@ -287,11 +287,18 @@ func (p *SubagentPanel) SetElapsed(d time.Duration) {
 	p.elapsed = d
 }
 
+// AdvanceSpinner manually advances the spinner frame.
+// Use this when rendering outside of Bubble Tea's Update loop.
+func (p *SubagentPanel) AdvanceSpinner() {
+	if p.spinner.FrameCount() > 0 {
+		p.spinnerIdx = (p.spinnerIdx + 1) % p.spinner.FrameCount()
+	}
+}
+
 // SetTokenCount sets token count text.
 func (p *SubagentPanel) SetTokenCount(s string) {
 	p.tokenCount = strings.TrimSpace(s)
 }
-
 // SetCost sets cost text.
 func (p *SubagentPanel) SetCost(s string) {
 	p.cost = strings.TrimSpace(s)

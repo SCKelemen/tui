@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // SubagentStatus represents the subagent execution state.
@@ -257,11 +258,17 @@ func (p *SubagentPanel) View() string {
 			nameWidth = 0
 		}
 		toolName := smartElideToolName(tool.Name, nameWidth)
-		line := fmt.Sprintf(" %s%s %s %s", p.connectorColor, connector, p.renderToolIcon(tool.Status), toolName)
 
-		// Dim older completed tools
-		if tool.Status == ToolCompleted && i < len(visible)-1 {
-			line = fmt.Sprintf(" %s%s %s %s%s%s", p.connectorColor, connector, p.renderToolIcon(tool.Status), p.successMutedColor, toolName, style.ANSIReset)
+		var line string
+		switch tool.Status {
+		case ToolRunning:
+			line = fmt.Sprintf(" %s%s%s %s %s", p.connectorColor, connector, style.ANSIReset, p.renderToolIcon(tool.Status), toolName)
+		case ToolCompleted:
+			line = fmt.Sprintf(" %s%s%s %s %s%s%s", p.connectorColor, connector, style.ANSIReset, p.renderToolIcon(tool.Status), p.footerColor, toolName, style.ANSIReset)
+		case ToolFailed:
+			line = fmt.Sprintf(" %s%s%s %s %s%s%s", p.connectorColor, connector, style.ANSIReset, p.renderToolIcon(tool.Status), p.footerColor, toolName, style.ANSIReset)
+		default:
+			line = fmt.Sprintf(" %s%s%s %s %s", p.connectorColor, connector, style.ANSIReset, p.renderToolIcon(tool.Status), toolName)
 		}
 
 		line += style.ANSIReset
@@ -439,32 +446,22 @@ func (p *SubagentPanel) renderFooterLine() string {
 	dur := formatSubagentDuration(p.elapsed)
 	meta := p.buildMetaSuffix()
 
+	var statusPart string
 	switch p.status {
 	case SubagentCompleted:
-		left := fmt.Sprintf("%sDone%s %sin %s%s", p.successBrightColor, style.ANSIReset, p.successMutedColor, dur, style.ANSIReset)
-		if meta != "" {
-			return fmt.Sprintf(" %s %s%s%s", left, p.successMutedColor, meta, style.ANSIReset)
-		}
-		return " " + left
+		statusPart = fmt.Sprintf("%sDone%s %sin %s%s", p.successBrightColor, style.ANSIReset, p.successMutedColor, dur, style.ANSIReset)
 	case SubagentFailed:
-		left := fmt.Sprintf("%sFailed%s %safter %s%s", p.errorBrightColor, style.ANSIReset, p.errorMutedColor, dur, style.ANSIReset)
-		if meta != "" {
-			return fmt.Sprintf(" %s %s%s%s", left, p.errorMutedColor, meta, style.ANSIReset)
-		}
-		return " " + left
+		statusPart = fmt.Sprintf("%sFailed%s %safter %s%s", p.errorBrightColor, style.ANSIReset, p.errorMutedColor, dur, style.ANSIReset)
 	case SubagentAborted:
-		left := fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
-		if meta != "" {
-			return fmt.Sprintf(" %s %s%s%s", left, p.footerColor, meta, style.ANSIReset)
-		}
-		return " " + left
+		statusPart = fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
 	default:
-		left := fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
-		if meta != "" {
-			return fmt.Sprintf(" %s %s%s%s", left, p.footerColor, meta, style.ANSIReset)
-		}
-		return " " + left
+		statusPart = fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
 	}
+
+	if meta != "" {
+		return fmt.Sprintf(" %s %s%s%s", statusPart, p.footerColor, meta, style.ANSIReset)
+	}
+	return " " + statusPart
 }
 
 func (p *SubagentPanel) buildMetaSuffix() string {
@@ -535,13 +532,52 @@ func (p *SubagentPanel) fitToWidth(line string) string {
 	stripped := stripANSI(line)
 	w := style.StringWidth(stripped)
 	if w > p.width {
-		return style.Truncate(stripped, p.width, "…")
+		return truncatePreservingANSI(line, p.width) + style.ANSIReset
 	}
 	if w < p.width {
 		return line + strings.Repeat(" ", p.width-w)
 	}
 	return line
 }
+
+// truncatePreservingANSI truncates a string to maxWidth visual characters
+// while keeping ANSI escape sequences intact up to the cut point.
+func truncatePreservingANSI(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	var result strings.Builder
+	visualWidth := 0
+	i := 0
+	for i < len(s) {
+		// Check for ANSI escape sequence
+		if s[i] == '\033' && i+1 < len(s) && s[i+1] == '[' {
+			// Copy the entire escape sequence without counting it
+			j := i + 2
+			for j < len(s) && !((s[j] >= 'A' && s[j] <= 'Z') || (s[j] >= 'a' && s[j] <= 'z')) {
+				j++
+			}
+			if j < len(s) {
+				j++ // include the terminating letter
+			}
+			result.WriteString(s[i:j])
+			i = j
+			continue
+		}
+		// Decode the rune for proper width counting
+		r, size := utf8.DecodeRuneInString(s[i:])
+		rw := style.StringWidth(string(r))
+		if visualWidth+rw > maxWidth-1 { // -1 for ellipsis
+			result.WriteRune('…')
+			break
+		}
+		result.WriteRune(r)
+		visualWidth += rw
+		i += size
+	}
+	return result.String()
+}
+
 func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return

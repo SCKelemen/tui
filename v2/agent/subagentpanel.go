@@ -321,6 +321,7 @@ func (p *SubagentPanel) wrapBg(bgEsc string, line string) string {
 	}
 	return bgEsc + patched + strings.Repeat(" ", pad) + style.ANSIReset
 }
+
 // Focus marks the panel as focused.
 func (p *SubagentPanel) Focus() {
 	p.focused = true
@@ -394,6 +395,19 @@ func (p *SubagentPanel) SetTools(tools []SubagentTool) {
 // GetStatus returns the current panel status.
 func (p *SubagentPanel) GetStatus() SubagentStatus {
 	return p.status
+}
+
+// BottomPinnedLines returns the number of lines at the bottom of View()
+// that must stay pinned together (footer + change chips + bottom border).
+func (p *SubagentPanel) BottomPinnedLines() int {
+	chipCount := 0
+	for _, tool := range p.tools {
+		if tool.LinesAdded > 0 || tool.LinesRemoved > 0 {
+			chipCount++
+		}
+	}
+	// 1 footer + 3 lines per chip + 1 bottom border
+	return 1 + (chipCount * 3) + 1
 }
 
 func (p *SubagentPanel) tick() tea.Cmd {

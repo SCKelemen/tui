@@ -424,30 +424,27 @@ func (g *SubagentGroup) renderSingleRow(panels []*SubagentPanel) []string {
 		}
 		padLine := style.Bg(surfHex) + strings.Repeat(" ", widths[i]) + style.ANSIReset
 
-		// The last 2 lines are the footer + bottom border (▀▀▀).
-		// Insert padding before them so the footer stays pinned to the bottom.
-		if len(lines) >= 3 {
-			bottomTwo := make([]string, 2)
-			copy(bottomTwo, lines[len(lines)-2:])
-			content := lines[:len(lines)-2]
+		// Ask the panel how many bottom lines to pin (footer + chips + border).
+		pinned := 2 // default: footer + border
+		if i < len(panels) && panels[i] != nil {
+			pinned = panels[i].BottomPinnedLines()
+		}
+
+		// Insert padding before the pinned bottom section.
+		if len(lines) > pinned {
+			bottom := make([]string, pinned)
+			copy(bottom, lines[len(lines)-pinned:])
+			content := lines[:len(lines)-pinned]
 			pad := make([]string, deficit)
 			for j := range pad {
 				pad[j] = padLine
 			}
 			perPanel[i] = append(content, pad...)
-			perPanel[i] = append(perPanel[i], bottomTwo...)
-		} else if len(lines) >= 2 {
-			footer := lines[len(lines)-1]
-			content := lines[:len(lines)-1]
-			pad := make([]string, deficit)
-			for j := range pad {
-				pad[j] = padLine
-			}
-			perPanel[i] = append(content, pad...)
-			perPanel[i] = append(perPanel[i], footer)
+			perPanel[i] = append(perPanel[i], bottom...)
 		} else {
+			// Panel is too short; just append padding at the end
 			for len(perPanel[i]) < maxHeight {
-				perPanel[i] = append(perPanel[i], strings.Repeat(" ", widths[i]))
+				perPanel[i] = append(perPanel[i], padLine)
 			}
 		}
 	}

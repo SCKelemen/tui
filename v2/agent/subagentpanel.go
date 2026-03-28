@@ -228,8 +228,12 @@ func (p *SubagentPanel) View() string {
 
 	var lines []string
 
-	// Top border: ▄ with fg=surface color, invisible against terminal bg
-	lines = append(lines, fgSurface+strings.Repeat("▄", p.width)+style.ANSIReset)
+	// Top border with rounded corners: ▗▄▄▄▄▖
+	if p.width >= 3 {
+		lines = append(lines, fgSurface+"▗"+strings.Repeat("▄", p.width-2)+"▖"+style.ANSIReset)
+	} else {
+		lines = append(lines, fgSurface+strings.Repeat("▄", p.width)+style.ANSIReset)
+	}
 
 	// Header with elevated background
 	headerRaw := p.renderHeaderLine()
@@ -302,8 +306,12 @@ func (p *SubagentPanel) View() string {
 		lines = append(lines, chip)
 	}
 
-	// Bottom border: ▀ with fg=surface color, invisible against terminal bg
-	lines = append(lines, fgSurface+strings.Repeat("▀", p.width)+style.ANSIReset)
+	// Bottom border with rounded corners: ▝▀▀▀▀▘
+	if p.width >= 3 {
+		lines = append(lines, fgSurface+"▝"+strings.Repeat("▀", p.width-2)+"▘"+style.ANSIReset)
+	} else {
+		lines = append(lines, fgSurface+strings.Repeat("▀", p.width)+style.ANSIReset)
+	}
 
 	return strings.Join(lines, "\n") + "\n"
 }

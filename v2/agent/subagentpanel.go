@@ -529,7 +529,7 @@ func (p *SubagentPanel) renderFooterLine() string {
 		left = fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
 	default:
 		leftPlain = "Working… " + dur
-		left = fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		left = fmt.Sprintf("%sWorking… %s%s", p.footerColor, dur, style.ANSIReset)
 	}
 	if meta == "" {
 		return " " + left

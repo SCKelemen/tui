@@ -395,11 +395,29 @@ func (g *SubagentGroup) renderSingleRow(panels []*SubagentPanel) []string {
 	}
 
 	for i := range perPanel {
-		for len(perPanel[i]) < maxHeight {
-			perPanel[i] = append(perPanel[i], strings.Repeat(" ", widths[i]))
+		lines := perPanel[i]
+		deficit := maxHeight - len(lines)
+		if deficit <= 0 {
+			continue
+		}
+		// The last line is the bottom border (▀▀▀).
+		// Insert padding lines before it so the box grows uniformly.
+		if len(lines) >= 2 {
+			bottomBorder := lines[len(lines)-1]
+			content := lines[:len(lines)-1]
+			pad := make([]string, deficit)
+			for j := range pad {
+				pad[j] = strings.Repeat(" ", widths[i])
+			}
+			perPanel[i] = append(content, pad...)
+			perPanel[i] = append(perPanel[i], bottomBorder)
+		} else {
+			// Fallback — just append
+			for len(perPanel[i]) < maxHeight {
+				perPanel[i] = append(perPanel[i], strings.Repeat(" ", widths[i]))
+			}
 		}
 	}
-
 	gap := strings.Repeat(" ", g.gap)
 	result := make([]string, 0, maxHeight)
 	for lineIdx := 0; lineIdx < maxHeight; lineIdx++ {

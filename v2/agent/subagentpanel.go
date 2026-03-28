@@ -2,14 +2,13 @@ package agent
 
 import (
 	"fmt"
-	"strings"
-	"time"
-
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
 	"github.com/SCKelemen/tui/v2/spinner"
 	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
+	"strings"
+	"time"
 )
 
 // SubagentStatus represents the subagent execution state.
@@ -54,17 +53,19 @@ type SubagentPanel struct {
 
 	width int
 
-	spinner        spinner.Spinner
-	spinnerIdx     int
-	lastTick       time.Time
-	focused        bool
-	designTokens   *design.DesignTokens
-	runningColor   string
-	successColor   string
-	errorColor     string
-	abortedColor   string
-	footerColor    string
-	connectorColor string
+	spinner            spinner.Spinner
+	spinnerIdx         int
+	lastTick           time.Time
+	focused            bool
+	designTokens       *design.DesignTokens
+	runningColor       string
+	successBrightColor string // checkmarks, dots, 'Done'
+	successMutedColor  string // durations, secondary success metadata
+	errorBrightColor   string // crosses, failure dots
+	errorMutedColor    string // failure durations, secondary error metadata
+	abortedColor       string
+	footerColor        string
+	connectorColor     string
 }
 
 // SubagentPanelOption configures a SubagentPanel.
@@ -134,6 +135,7 @@ func WithSubagentThinking(text string) SubagentPanelOption {
 		p.thinking = text
 	}
 }
+
 // subagentPanelTickMsg animates spinner + elapsed time updates.
 type subagentPanelTickMsg struct {
 	now time.Time
@@ -142,21 +144,23 @@ type subagentPanelTickMsg struct {
 // NewSubagentPanel creates a new SubagentPanel.
 func NewSubagentPanel(opts ...SubagentPanelOption) *SubagentPanel {
 	p := &SubagentPanel{
-		title:          "",
-		status:         SubagentRunning,
-		tools:          make([]SubagentTool, 0),
-		visibleTools:   8,
-		hiddenCount:    0,
-		elapsed:        0,
-		width:          36,
-		spinner:        spinner.Braille,
-		spinnerIdx:     0,
-		runningColor:   style.ANSICyan,
-		successColor:   style.ANSIGreen,
-		errorColor:     style.ANSIRed,
-		abortedColor:   style.ANSIDim,
-		footerColor:    style.ANSIDim,
-		connectorColor: style.ANSIDim,
+		title:              "",
+		status:             SubagentRunning,
+		tools:              make([]SubagentTool, 0),
+		visibleTools:       8,
+		hiddenCount:        0,
+		elapsed:            0,
+		width:              36,
+		spinner:            spinner.Braille,
+		spinnerIdx:         0,
+		runningColor:       style.Fg("#06B6D4"),
+		successBrightColor: style.Fg("#88D67F"),
+		successMutedColor:  style.Fg("#5B845C"),
+		errorBrightColor:   style.Fg("#C96B72"),
+		errorMutedColor:    style.Fg("#7A4044"),
+		abortedColor:       style.ANSIDim,
+		footerColor:        style.Fg("#7A818A"),
+		connectorColor:     style.Fg("#7A818A"),
 	}
 
 	for _, opt := range opts {
@@ -257,7 +261,7 @@ func (p *SubagentPanel) View() string {
 
 		// Dim older completed tools
 		if tool.Status == ToolCompleted && i < len(visible)-1 {
-			line = fmt.Sprintf(" %s%s %s %s%s%s", p.connectorColor, connector, p.renderToolIcon(tool.Status), style.ANSIDim, toolName, style.ANSIReset)
+			line = fmt.Sprintf(" %s%s %s %s%s%s", p.connectorColor, connector, p.renderToolIcon(tool.Status), p.successMutedColor, toolName, style.ANSIReset)
 		}
 
 		line += style.ANSIReset
@@ -312,6 +316,7 @@ func (p *SubagentPanel) AdvanceSpinner() {
 func (p *SubagentPanel) SetTokenCount(s string) {
 	p.tokenCount = strings.TrimSpace(s)
 }
+
 // SetCost sets cost text.
 func (p *SubagentPanel) SetCost(s string) {
 	p.cost = strings.TrimSpace(s)
@@ -388,9 +393,9 @@ func (p *SubagentPanel) renderStatusIcon() (string, string) {
 		}
 		return p.runningColor + frame + style.ANSIReset, frame
 	case SubagentCompleted:
-		return p.successColor + style.ANSIBold + "●" + style.ANSIReset, "●"
+		return p.successBrightColor + style.ANSIBold + "●" + style.ANSIReset, "●"
 	case SubagentFailed:
-		return p.errorColor + "✗" + style.ANSIReset, "✗"
+		return p.errorBrightColor + "✗" + style.ANSIReset, "✗"
 	case SubagentAborted:
 		return p.abortedColor + "○" + style.ANSIReset, "○"
 	default:
@@ -407,9 +412,9 @@ func (p *SubagentPanel) renderToolIcon(status ToolStatus) string {
 		}
 		return p.runningColor + frame + style.ANSIReset
 	case ToolCompleted:
-		return p.successColor + "✓" + style.ANSIReset
+		return p.successBrightColor + "✓" + style.ANSIReset
 	case ToolFailed:
-		return p.errorColor + "✗" + style.ANSIReset
+		return p.errorBrightColor + "✗" + style.ANSIReset
 	default:
 		return "·"
 	}
@@ -431,12 +436,39 @@ func (p *SubagentPanel) renderToolPlainIcon(status ToolStatus) string {
 	}
 }
 func (p *SubagentPanel) renderFooterLine() string {
-	statusText := "Done in"
-	if p.status == SubagentRunning {
-		statusText = "Working…"
-	}
+	dur := formatSubagentDuration(p.elapsed)
+	meta := p.buildMetaSuffix()
 
-	parts := []string{statusText, formatSubagentDuration(p.elapsed)}
+	switch p.status {
+	case SubagentCompleted:
+		left := fmt.Sprintf("%sDone%s %sin %s%s", p.successBrightColor, style.ANSIReset, p.successMutedColor, dur, style.ANSIReset)
+		if meta != "" {
+			return fmt.Sprintf(" %s %s%s%s", left, p.successMutedColor, meta, style.ANSIReset)
+		}
+		return " " + left
+	case SubagentFailed:
+		left := fmt.Sprintf("%sFailed%s %safter %s%s", p.errorBrightColor, style.ANSIReset, p.errorMutedColor, dur, style.ANSIReset)
+		if meta != "" {
+			return fmt.Sprintf(" %s %s%s%s", left, p.errorMutedColor, meta, style.ANSIReset)
+		}
+		return " " + left
+	case SubagentAborted:
+		left := fmt.Sprintf("%sAborted%s %safter %s%s", p.abortedColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		if meta != "" {
+			return fmt.Sprintf(" %s %s%s%s", left, p.footerColor, meta, style.ANSIReset)
+		}
+		return " " + left
+	default:
+		left := fmt.Sprintf("%sWorking…%s %s%s%s", p.runningColor, style.ANSIReset, p.footerColor, dur, style.ANSIReset)
+		if meta != "" {
+			return fmt.Sprintf(" %s %s%s%s", left, p.footerColor, meta, style.ANSIReset)
+		}
+		return " " + left
+	}
+}
+
+func (p *SubagentPanel) buildMetaSuffix() string {
+	var parts []string
 	if p.modelName != "" {
 		parts = append(parts, p.modelName)
 	}
@@ -446,14 +478,10 @@ func (p *SubagentPanel) renderFooterLine() string {
 	if p.cost != "" {
 		parts = append(parts, p.cost)
 	}
-
-	if len(parts) <= 2 {
-		return " " + p.footerColor + strings.Join(parts, " ") + style.ANSIReset
+	if len(parts) == 0 {
+		return ""
 	}
-
-	left := strings.Join(parts[:2], " ")
-	right := strings.Join(parts[2:], " · ")
-	return fmt.Sprintf(" %s%s %s%s%s", p.footerColor, left, right, style.ANSIReset, style.ANSIReset)
+	return strings.Join(parts, " · ")
 }
 
 func formatSubagentDuration(d time.Duration) string {
@@ -518,16 +546,24 @@ func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return
 	}
-	accent := style.ANSIColorFromHex(tokens.Accent)
-	foreground := style.ANSIColorFromHex(tokens.Color)
-	if accent != "" {
-		p.runningColor = accent
-		p.successColor = accent
-		p.connectorColor = accent
+	if v := strings.TrimSpace(tokens.SuccessBright); v != "" {
+		p.successBrightColor = style.Fg(v)
 	}
-	if foreground != "" {
-		p.errorColor = foreground
-		p.abortedColor = foreground
-		p.footerColor = foreground
+	if v := strings.TrimSpace(tokens.SuccessMuted); v != "" {
+		p.successMutedColor = style.Fg(v)
+	}
+	if v := strings.TrimSpace(tokens.ErrorBright); v != "" {
+		p.errorBrightColor = style.Fg(v)
+	}
+	if v := strings.TrimSpace(tokens.ErrorMuted); v != "" {
+		p.errorMutedColor = style.Fg(v)
+	}
+	if v := strings.TrimSpace(tokens.RunningColor); v != "" {
+		p.runningColor = style.Fg(v)
+	}
+	if v := strings.TrimSpace(tokens.MutedColor); v != "" {
+		p.footerColor = style.Fg(v)
+		p.connectorColor = style.Fg(v)
+		p.abortedColor = style.Fg(v)
 	}
 }

@@ -5,7 +5,8 @@ go 1.25.4
 require (
 	github.com/SCKelemen/color v1.0.5
 	github.com/SCKelemen/dataviz v1.1.4
-	github.com/SCKelemen/design-system v1.0.2
+	github.com/SCKelemen/design-system v1.3.0
+	github.com/SCKelemen/text v1.1.3
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 )
@@ -13,7 +14,6 @@ require (
 require (
 	github.com/SCKelemen/layout v1.1.3 // indirect
 	github.com/SCKelemen/svg v1.0.2 // indirect
-	github.com/SCKelemen/text v1.1.3 // indirect
 	github.com/SCKelemen/unicode v1.1.1 // indirect
 	github.com/SCKelemen/units v1.1.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect

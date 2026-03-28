@@ -20,9 +20,9 @@ type SubagentGroup struct {
 
 	focused      bool
 	focusedPanel int
-	headerText string
-	footerText string
-	focusHint  string
+	headerText   string
+	footerText   string
+	focusHint    string
 
 	designTokens *design.DesignTokens
 	startTime    time.Time
@@ -41,6 +41,15 @@ func WithSubagentGroupGap(gap int) SubagentGroupOption {
 	}
 }
 
+// WithSubagentGroupWidth sets the total width for the group.
+func WithSubagentGroupWidth(w int) SubagentGroupOption {
+	return func(g *SubagentGroup) {
+		if w > 0 {
+			g.width = w
+		}
+	}
+}
+
 // WithSubagentGroupMaxPerRow sets the max number of panels per row.
 func WithSubagentGroupMaxPerRow(n int) SubagentGroupOption {
 	return func(g *SubagentGroup) {
@@ -50,6 +59,7 @@ func WithSubagentGroupMaxPerRow(n int) SubagentGroupOption {
 		g.maxPerRow = n
 	}
 }
+
 // WithSubagentGroupDesignTokens applies design-system tokens.
 func WithSubagentGroupDesignTokens(tokens *design.DesignTokens) SubagentGroupOption {
 	return func(g *SubagentGroup) {
@@ -116,6 +126,13 @@ func (g *SubagentGroup) SetPanels(panels []*SubagentPanel) {
 	}
 
 	g.syncPanelFocus()
+}
+
+// SetWidth updates the group's total rendering width.
+func (g *SubagentGroup) SetWidth(w int) {
+	if w > 0 {
+		g.width = w
+	}
 }
 
 // GetPanels returns the current panel slice.
@@ -400,14 +417,31 @@ func (g *SubagentGroup) renderSingleRow(panels []*SubagentPanel) []string {
 		if deficit <= 0 {
 			continue
 		}
-		// The last line is the footer (status + metadata).
-		// Insert padding before it so the footer stays pinned to the bottom.
-		if len(lines) >= 2 {
+		// Get this panel's surface color for padding background
+		surfHex := "#31353D"
+		if i < len(panels) && panels[i] != nil && panels[i].surfaceColor != "" {
+			surfHex = panels[i].surfaceColor
+		}
+		padLine := style.Bg(surfHex) + strings.Repeat(" ", widths[i]) + style.ANSIReset
+
+		// The last 2 lines are the footer + bottom border (▀▀▀).
+		// Insert padding before them so the footer stays pinned to the bottom.
+		if len(lines) >= 3 {
+			bottomTwo := make([]string, 2)
+			copy(bottomTwo, lines[len(lines)-2:])
+			content := lines[:len(lines)-2]
+			pad := make([]string, deficit)
+			for j := range pad {
+				pad[j] = padLine
+			}
+			perPanel[i] = append(content, pad...)
+			perPanel[i] = append(perPanel[i], bottomTwo...)
+		} else if len(lines) >= 2 {
 			footer := lines[len(lines)-1]
 			content := lines[:len(lines)-1]
 			pad := make([]string, deficit)
 			for j := range pad {
-				pad[j] = strings.Repeat(" ", widths[i])
+				pad[j] = padLine
 			}
 			perPanel[i] = append(content, pad...)
 			perPanel[i] = append(perPanel[i], footer)

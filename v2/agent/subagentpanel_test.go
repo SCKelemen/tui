@@ -159,8 +159,8 @@ func TestSubagentPanelBorders(t *testing.T) {
 	}
 
 	view := stripANSI(panel.View())
-	if strings.Contains(view, "▄") || strings.Contains(view, "▀") {
-		t.Fatalf("expected no top/bottom border characters, got:\n%s", view)
+	if !strings.Contains(view, "▄") || !strings.Contains(view, "▀") {
+		t.Fatalf("expected top/bottom border characters, got:\n%s", view)
 	}
 }
 func TestSubagentPanelFooterFormatting(t *testing.T) {

@@ -33,8 +33,10 @@ const (
 
 // SubagentTool represents one tool operation rendered in the panel.
 type SubagentTool struct {
-	Name   string
-	Status ToolStatus
+	Name         string
+	Status       ToolStatus
+	LinesAdded   int
+	LinesRemoved int
 }
 
 // SubagentPanel renders a single subagent panel.
@@ -67,6 +69,7 @@ type SubagentPanel struct {
 	abortedColor       string
 	footerColor        string
 	connectorColor     string
+	surfaceColor       string // hex for Bg() on content lines and Fg() on borders
 }
 
 // SubagentPanelOption configures a SubagentPanel.
@@ -162,6 +165,7 @@ func NewSubagentPanel(opts ...SubagentPanelOption) *SubagentPanel {
 		abortedColor:       style.ANSIDim,
 		footerColor:        style.Fg("#7A818A"),
 		connectorColor:     style.Fg("#7A818A"),
+		surfaceColor:       "#31353D",
 	}
 
 	for _, opt := range opts {
@@ -219,10 +223,19 @@ func (p *SubagentPanel) View() string {
 		return ""
 	}
 
+	bgOn := style.Bg(p.surfaceColor)
+	fgSurface := style.Fg(p.surfaceColor)
+
 	var lines []string
 
-	lines = append(lines, p.fitToWidth(p.renderHeaderLine()))
+	// Top border: ▄ with fg=surface color, invisible against terminal bg
+	lines = append(lines, fgSurface+strings.Repeat("▄", p.width)+style.ANSIReset)
 
+	// Header with elevated background
+	headerRaw := p.renderHeaderLine()
+	lines = append(lines, p.wrapBg(bgOn, p.fitToWidth(headerRaw)))
+
+	// Thinking text with elevated background
 	if p.thinking != "" {
 		thinkLines := strings.Split(p.thinking, "\n")
 		for _, tl := range thinkLines {
@@ -231,15 +244,17 @@ func (p *SubagentPanel) View() string {
 				continue
 			}
 			line := fmt.Sprintf(" %s%s%s", style.ANSIDim, style.Truncate(trimmed, p.width-2, "…"), style.ANSIReset)
-			lines = append(lines, p.fitToWidth(line))
+			lines = append(lines, p.wrapBg(bgOn, p.fitToWidth(line)))
 		}
 	}
 
+	// Hidden tools indicator
 	if p.hiddenCount > 0 {
 		hidden := fmt.Sprintf(" %s... +%d earlier tools%s", style.ANSIDim, p.hiddenCount, style.ANSIReset)
-		lines = append(lines, p.fitToWidth(hidden))
+		lines = append(lines, p.wrapBg(bgOn, p.fitToWidth(hidden)))
 	}
 
+	// Visible tools
 	start := 0
 	if len(p.tools) > p.visibleTools {
 		start = len(p.tools) - p.visibleTools
@@ -270,12 +285,38 @@ func (p *SubagentPanel) View() string {
 			line = fmt.Sprintf(" %s%s%s %s %s", p.connectorColor, connector, style.ANSIReset, p.renderToolIcon(tool.Status), toolName)
 		}
 
+		// Append +N -M trailer for edits
+		trailer := p.renderChangeTrailer(tool)
+		if trailer != "" {
+			line += " " + trailer
+		}
 		line += style.ANSIReset
-		lines = append(lines, p.fitToWidth(line))
+		lines = append(lines, p.wrapBg(bgOn, p.fitToWidth(line)))
 	}
-	lines = append(lines, p.fitToWidth(p.renderFooterLine()))
+
+	// Footer with elevated background
+	lines = append(lines, p.wrapBg(bgOn, p.fitToWidth(p.renderFooterLine())))
+
+	// Change chips for tools that modified files
+	for _, chip := range p.renderChangeChips(bgOn) {
+		lines = append(lines, chip)
+	}
+
+	// Bottom border: ▀ with fg=surface color, invisible against terminal bg
+	lines = append(lines, fgSurface+strings.Repeat("▀", p.width)+style.ANSIReset)
 
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// wrapBg wraps a content line with a background color, padding to full width.
+func (p *SubagentPanel) wrapBg(bgEsc string, line string) string {
+	// Pad the line to fill the full panel width on the elevated background
+	stripped := stripANSI(line)
+	pad := p.width - style.StringWidth(stripped)
+	if pad < 0 {
+		pad = 0
+	}
+	return bgEsc + line + strings.Repeat(" ", pad) + style.ANSIReset
 }
 
 // Focus marks the panel as focused.
@@ -475,6 +516,94 @@ func (p *SubagentPanel) renderFooterLine() string {
 
 	return fmt.Sprintf(" %s%s%s%s%s ", left, strings.Repeat(" ", gap), p.footerColor, meta, style.ANSIReset)
 }
+
+// renderChangeTrailer returns a '+N -M' suffix for tool lines with edits.
+func (p *SubagentPanel) renderChangeTrailer(tool SubagentTool) string {
+	if tool.LinesAdded == 0 && tool.LinesRemoved == 0 {
+		return ""
+	}
+	// Bright when active, muted when completed/archived
+	addColor := p.successBrightColor
+	delColor := p.errorBrightColor
+	if tool.Status == ToolCompleted || tool.Status == ToolFailed {
+		addColor = p.successMutedColor
+		delColor = p.errorMutedColor
+	}
+	var parts []string
+	if tool.LinesAdded > 0 {
+		parts = append(parts, fmt.Sprintf("%s+%d%s", addColor, tool.LinesAdded, style.ANSIReset))
+	}
+	if tool.LinesRemoved > 0 {
+		parts = append(parts, fmt.Sprintf("%s-%d%s", delColor, tool.LinesRemoved, style.ANSIReset))
+	}
+	return strings.Join(parts, " ")
+}
+
+// renderChangeChips renders bordered file change pills between footer and bottom border.
+func (p *SubagentPanel) renderChangeChips(bgOn string) []string {
+	type chipData struct {
+		name    string
+		added   int
+		removed int
+	}
+	var chips []chipData
+	for _, tool := range p.tools {
+		if tool.LinesAdded > 0 || tool.LinesRemoved > 0 {
+			// Extract just the filename from the tool name
+			name := tool.Name
+			if idx := strings.LastIndex(name, "/"); idx >= 0 {
+				name = name[idx+1:]
+			}
+			// Remove common prefixes like 'Edited ', 'Wrote '
+			for _, prefix := range []string{"Edited ", "Wrote ", "Created "} {
+				if strings.HasPrefix(name, prefix) {
+					name = name[len(prefix):]
+					break
+				}
+			}
+			chips = append(chips, chipData{name: name, added: tool.LinesAdded, removed: tool.LinesRemoved})
+		}
+	}
+	if len(chips) == 0 {
+		return nil
+	}
+
+	var result []string
+	for _, c := range chips {
+		// Build the inner text: filename +N -M
+		var changeParts []string
+		if c.added > 0 {
+			changeParts = append(changeParts, fmt.Sprintf("%s+%d%s", p.successBrightColor, c.added, style.ANSIReset))
+		}
+		if c.removed > 0 {
+			changeParts = append(changeParts, fmt.Sprintf("%s-%d%s", p.errorBrightColor, c.removed, style.ANSIReset))
+		}
+		inner := c.name + " " + strings.Join(changeParts, " ")
+		innerPlain := c.name + " "
+		if c.added > 0 {
+			innerPlain += fmt.Sprintf("+%d", c.added)
+		}
+		if c.removed > 0 {
+			if c.added > 0 {
+				innerPlain += " "
+			}
+			innerPlain += fmt.Sprintf("-%d", c.removed)
+		}
+		innerWidth := style.StringWidth(innerPlain)
+
+		// Render ╭─...─╮ / │ inner │ / ╰─...─╯ as subtle bordered chip
+		border := p.footerColor
+		topLine := fmt.Sprintf(" %s╭%s╮%s", border, strings.Repeat("─", innerWidth+2), style.ANSIReset)
+		midLine := fmt.Sprintf(" %s│%s %s %s│%s", border, style.ANSIReset, inner, border, style.ANSIReset)
+		botLine := fmt.Sprintf(" %s╰%s╯%s", border, strings.Repeat("─", innerWidth+2), style.ANSIReset)
+
+		result = append(result, p.wrapBg(bgOn, p.fitToWidth(topLine)))
+		result = append(result, p.wrapBg(bgOn, p.fitToWidth(midLine)))
+		result = append(result, p.wrapBg(bgOn, p.fitToWidth(botLine)))
+	}
+	return result
+}
+
 func (p *SubagentPanel) buildMetaSuffix() string {
 	var parts []string
 	if p.modelName != "" {
@@ -612,5 +741,8 @@ func (p *SubagentPanel) applyDesignTokens(tokens *design.DesignTokens) {
 		p.footerColor = style.Fg(v)
 		p.connectorColor = style.Fg(v)
 		p.abortedColor = style.Fg(v)
+	}
+	if v := strings.TrimSpace(tokens.SurfaceRaised); v != "" {
+		p.surfaceColor = v
 	}
 }

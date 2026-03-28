@@ -7,6 +7,7 @@ import (
 	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
 // TestDiffBlockCreation tests default creation
 func TestDiffBlockCreation(t *testing.T) {
 	db := NewDiffBlock()
@@ -578,7 +579,7 @@ func TestDiffBlockWithLanguage(t *testing.T) {
 	)
 
 	view := db.View()
-	keyword := style.ANSIBold + style.ANSIBlue + "func" + style.ANSIReset
+	keyword := db.colorFg(db.syntaxKeyword, style.ANSIBold+style.ANSIBlue) + "func" + style.ANSIReset
 	if !strings.Contains(view, keyword) {
 		t.Fatalf("expected highlighted keyword in view: %q", view)
 	}
@@ -599,7 +600,7 @@ func TestDiffBlockWithFilename(t *testing.T) {
 	}
 
 	view := db.View()
-	keyword := style.ANSIBold + style.ANSIBlue + "func" + style.ANSIReset
+	keyword := db.colorFg(db.syntaxKeyword, style.ANSIBold+style.ANSIBlue) + "func" + style.ANSIReset
 	if !strings.Contains(view, keyword) {
 		t.Fatalf("expected highlighted keyword in view: %q", view)
 	}
@@ -623,7 +624,7 @@ func TestDiffBlockHighlightPreservesDiffColors(t *testing.T) {
 		t.Fatalf("expected removed line prefix to keep red diff color: %q", view)
 	}
 
-	keyword := style.ANSIBold + style.ANSIBlue + "func" + style.ANSIReset
+	keyword := db.colorFg(db.syntaxKeyword, style.ANSIBold+style.ANSIBlue) + "func" + style.ANSIReset
 	if !strings.Contains(view, keyword) {
 		t.Fatalf("expected syntax highlighting to still be present: %q", view)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
 	"github.com/SCKelemen/tui/v2/selection"
 	"github.com/SCKelemen/tui/v2/style"
@@ -46,6 +47,19 @@ type DiffBlock struct {
 
 	selMgr         *selection.SelectionManager
 	mouseSelection bool
+
+	// Design token colors
+	addBgColor     string // background for added lines
+	removeBgColor  string // background for removed lines
+	surfaceColor   string // raised surface background
+	borderColor    string // subtle border
+	accentColor    string // filename, header accent
+	mutedColor     string // line numbers, metadata
+	syntaxKeyword  string
+	syntaxFunction string
+	syntaxString   string
+	syntaxNumber   string
+	syntaxComment  string
 }
 
 type DiffBlockOption func(*DiffBlock)
@@ -88,6 +102,49 @@ func WithDiffMaxLines(max int) DiffBlockOption { return func(db *DiffBlock) { db
 func WithDiffBlockMouseSelection(enabled bool) DiffBlockOption {
 	return func(db *DiffBlock) { db.mouseSelection = enabled }
 }
+
+// WithDiffBlockDesignTokens applies design system tokens to the diff block.
+func WithDiffBlockDesignTokens(dt *design.DesignTokens) DiffBlockOption {
+	return func(d *DiffBlock) {
+		if dt == nil {
+			return
+		}
+		if v := dt.DiffAddBackground; v != "" {
+			d.addBgColor = v
+		}
+		if v := dt.DiffRemoveBackground; v != "" {
+			d.removeBgColor = v
+		}
+		if v := dt.SurfaceRaised; v != "" {
+			d.surfaceColor = v
+		}
+		if v := dt.BorderSubtle; v != "" {
+			d.borderColor = v
+		}
+		if v := dt.Accent; v != "" {
+			d.accentColor = v
+		}
+		if v := dt.MutedColor; v != "" {
+			d.mutedColor = v
+		}
+		if v := dt.SyntaxKeyword; v != "" {
+			d.syntaxKeyword = v
+		}
+		if v := dt.SyntaxFunction; v != "" {
+			d.syntaxFunction = v
+		}
+		if v := dt.SyntaxString; v != "" {
+			d.syntaxString = v
+		}
+		if v := dt.SyntaxNumber; v != "" {
+			d.syntaxNumber = v
+		}
+		if v := dt.SyntaxComment; v != "" {
+			d.syntaxComment = v
+		}
+	}
+}
+
 func NewDiffBlock(opts ...DiffBlockOption) *DiffBlock {
 	db := &DiffBlock{
 		operation:   "Edit",
@@ -97,6 +154,17 @@ func NewDiffBlock(opts ...DiffBlockOption) *DiffBlock {
 		newStart:    1,
 		selMgr:      selection.NewSelectionManager(),
 	}
+	db.addBgColor = "#314D3B"
+	db.removeBgColor = "#5F3439"
+	db.surfaceColor = "#31353D"
+	db.borderColor = "#3C414B"
+	db.accentColor = "#61AFEF"
+	db.mutedColor = "#7A818A"
+	db.syntaxKeyword = "#C678DD"
+	db.syntaxFunction = "#61AFEF"
+	db.syntaxString = "#98C379"
+	db.syntaxNumber = "#D19A66"
+	db.syntaxComment = "#7F848E"
 	for _, opt := range opts {
 		opt(db)
 	}
@@ -180,20 +248,23 @@ func (db *DiffBlock) View() string {
 	}
 
 	var b strings.Builder
-	icon := style.ANSIYellow + "⏺" + style.ANSIReset
+	accent := db.colorFg(db.accentColor, style.ANSIYellow)
+	muted := db.colorFg(db.mutedColor, style.ANSIDim)
+	border := db.colorFg(db.borderColor, "")
+
+	icon := accent + "⏺" + style.ANSIReset
 	b.WriteString(fmt.Sprintf("%s %s%s%s", icon, style.ANSIBold, db.operation, style.ANSIReset))
 	if db.filename != "" {
-		b.WriteString(fmt.Sprintf("(\033[36m%s%s)", db.filename, style.ANSIReset))
+		b.WriteString(fmt.Sprintf("(%s%s%s)", accent, db.filename, style.ANSIReset))
 	}
 	b.WriteString("\n")
 
 	added, removed := db.countChanges()
 	if db.summary != "" {
-		b.WriteString(fmt.Sprintf("  %s⎿  %s%s\n", style.ANSIDim, db.summary, style.ANSIReset))
+		b.WriteString(fmt.Sprintf("  %s⎿  %s%s\n", muted, db.summary, style.ANSIReset))
 	} else {
-		b.WriteString(fmt.Sprintf("  %s⎿  Added %d lines, removed %d lines%s\n", style.ANSIDim, added, removed, style.ANSIReset))
+		b.WriteString(fmt.Sprintf("  %s⎿  Added %d lines, removed %d lines%s\n", muted, added, removed, style.ANSIReset))
 	}
-
 	visibleLines, remaining, isTruncated := db.visibleLines()
 	if db.mouseSelection && db.selMgr != nil {
 		contentLines := make([]string, 0, len(visibleLines))
@@ -215,12 +286,11 @@ func (db *DiffBlock) View() string {
 
 	if remaining > 0 {
 		if db.expanded && isTruncated {
-			b.WriteString(fmt.Sprintf("     %s… +%d more lines (truncated)%s\n", style.ANSIDim, remaining, style.ANSIReset))
+			b.WriteString(fmt.Sprintf("     %s%s…%s %s+%d more lines (truncated)%s\n", border, muted, style.ANSIReset, muted, remaining, style.ANSIReset))
 		} else {
-			b.WriteString(fmt.Sprintf("     %s… +%d more lines (\033[3mctrl+o to expand%s%s)%s\n", style.ANSIDim, remaining, style.ANSIReset, style.ANSIDim, style.ANSIReset))
+			b.WriteString(fmt.Sprintf("     %s%s…%s %s+%d more lines (\033[3mctrl+o to expand%s%s)%s\n", border, muted, style.ANSIReset, muted, remaining, style.ANSIReset, muted, style.ANSIReset))
 		}
 	}
-
 	return b.String()
 }
 
@@ -300,13 +370,20 @@ func (db *DiffBlock) renderDiffLine(line DiffLine, row int) string {
 		content = db.selMgr.StyledLine(content, row)
 	}
 
+	lineNumColor := db.colorFg(db.mutedColor, style.ANSIDim)
+	addColor := style.ANSIGreen
+	removeColor := style.ANSIRed
+	addBg := db.colorBg(db.addBgColor, "")
+	removeBg := db.colorBg(db.removeBgColor, "")
+	surfaceBg := db.colorBg(db.surfaceColor, "")
+
 	switch line.Type {
 	case DiffAdded:
-		return fmt.Sprintf("  %s %s+%s %s\n", lineNumStr, style.ANSIGreen, style.ANSIReset, db.tintHighlightedContent(content, style.ANSIGreen))
+		return fmt.Sprintf("  %s%s%s %s+%s %s%s%s%s\n", lineNumColor, lineNumStr, style.ANSIReset, addColor, style.ANSIReset, addBg, db.tintHighlightedContent(content, addColor), style.ANSIReset, surfaceBg)
 	case DiffRemoved:
-		return fmt.Sprintf("  %s %s-%s %s\n", lineNumStr, style.ANSIRed, style.ANSIReset, db.tintHighlightedContent(content, style.ANSIRed))
+		return fmt.Sprintf("  %s%s%s %s-%s %s%s%s%s\n", lineNumColor, lineNumStr, style.ANSIReset, removeColor, style.ANSIReset, removeBg, db.tintHighlightedContent(content, removeColor), style.ANSIReset, surfaceBg)
 	case DiffUnchanged:
-		return fmt.Sprintf("  %s  %s\n", lineNumStr, content)
+		return fmt.Sprintf("  %s%s%s  %s%s%s\n", lineNumColor, lineNumStr, style.ANSIReset, surfaceBg, content, style.ANSIReset)
 	default:
 		return fmt.Sprintf("        %s\n", content)
 	}
@@ -331,7 +408,8 @@ func (db *DiffBlock) highlightDiffContent(line DiffLine) string {
 			}
 		}
 	}
-	return db.highlighter.HighlightLine(trimmed)
+	highlighted := db.highlighter.HighlightLine(trimmed)
+	return db.applySyntaxTokenColors(highlighted)
 }
 
 func (db *DiffBlock) tintHighlightedContent(content, diffColor string) string {
@@ -340,6 +418,38 @@ func (db *DiffBlock) tintHighlightedContent(content, diffColor string) string {
 	}
 	tinted := strings.ReplaceAll(content, style.ANSIReset, style.ANSIReset+diffColor)
 	return diffColor + tinted + style.ANSIReset
+}
+
+func (db *DiffBlock) applySyntaxTokenColors(content string) string {
+	if content == "" {
+		return content
+	}
+
+	replacements := map[string]string{
+		style.ANSIBold + style.ANSIBlue: db.colorFg(db.syntaxKeyword, style.ANSIBold+style.ANSIBlue),
+		style.ANSICyan:                  db.colorFg(db.syntaxFunction, style.ANSICyan),
+		style.ANSIGreen:                 db.colorFg(db.syntaxString, style.ANSIGreen),
+		style.ANSIYellow:                db.colorFg(db.syntaxNumber, style.ANSIYellow),
+		style.ANSIDim:                   db.colorFg(db.syntaxComment, style.ANSIDim),
+	}
+	for from, to := range replacements {
+		content = strings.ReplaceAll(content, from, to)
+	}
+	return content
+}
+
+func (db *DiffBlock) colorFg(hex, fallback string) string {
+	if c := style.Fg(hex); c != "" {
+		return c
+	}
+	return fallback
+}
+
+func (db *DiffBlock) colorBg(hex, fallback string) string {
+	if c := style.Bg(hex); c != "" {
+		return c
+	}
+	return fallback
 }
 
 var _ tui.Component = (*DiffBlock)(nil)

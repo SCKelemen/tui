@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
 	"github.com/SCKelemen/tui/v2/selection"
 	"github.com/SCKelemen/tui/v2/style"
@@ -30,6 +31,17 @@ type CodeBlock struct {
 	maxLines    int
 	startLine   int
 	showPreview int
+
+	// Design token colors
+	surfaceColor   string // raised surface background
+	borderColor    string // subtle border
+	accentColor    string // filename, header accent
+	mutedColor     string // line numbers, metadata
+	syntaxKeyword  string
+	syntaxFunction string
+	syntaxString   string
+	syntaxNumber   string
+	syntaxComment  string
 }
 
 // CodeBlockOption configures a CodeBlock.
@@ -111,6 +123,42 @@ func WithCodeBlockMouseSelection(enabled bool) CodeBlockOption {
 	return func(cb *CodeBlock) { cb.mouseSelectionEnabled = enabled }
 }
 
+// WithCodeBlockDesignTokens applies design system tokens to the code block.
+func WithCodeBlockDesignTokens(dt *design.DesignTokens) CodeBlockOption {
+	return func(c *CodeBlock) {
+		if dt == nil {
+			return
+		}
+		if v := dt.SurfaceRaised; v != "" {
+			c.surfaceColor = v
+		}
+		if v := dt.BorderSubtle; v != "" {
+			c.borderColor = v
+		}
+		if v := dt.Accent; v != "" {
+			c.accentColor = v
+		}
+		if v := dt.MutedColor; v != "" {
+			c.mutedColor = v
+		}
+		if v := dt.SyntaxKeyword; v != "" {
+			c.syntaxKeyword = v
+		}
+		if v := dt.SyntaxFunction; v != "" {
+			c.syntaxFunction = v
+		}
+		if v := dt.SyntaxString; v != "" {
+			c.syntaxString = v
+		}
+		if v := dt.SyntaxNumber; v != "" {
+			c.syntaxNumber = v
+		}
+		if v := dt.SyntaxComment; v != "" {
+			c.syntaxComment = v
+		}
+	}
+}
+
 func NewCodeBlock(opts ...CodeBlockOption) *CodeBlock {
 	cb := &CodeBlock{
 		operation:   "Code",
@@ -119,6 +167,16 @@ func NewCodeBlock(opts ...CodeBlockOption) *CodeBlock {
 		expanded:    false,
 		selMgr:      selection.NewSelectionManager(),
 	}
+
+	cb.surfaceColor = "#31353D"
+	cb.borderColor = "#3C414B"
+	cb.accentColor = "#61AFEF"
+	cb.mutedColor = "#7A818A"
+	cb.syntaxKeyword = "#C678DD"
+	cb.syntaxFunction = "#61AFEF"
+	cb.syntaxString = "#98C379"
+	cb.syntaxNumber = "#D19A66"
+	cb.syntaxComment = "#7F848E"
 
 	for _, opt := range opts {
 		opt(cb)

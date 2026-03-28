@@ -6,6 +6,7 @@ import (
 	"time"
 
 	design "github.com/SCKelemen/design-system"
+	"github.com/SCKelemen/tui/v2/spinner"
 	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -291,7 +292,7 @@ func TestSubagentPanelRenderingHelpersAndEdgeCases(t *testing.T) {
 		t.Fatalf("expected default tool icon, got %q", got)
 	}
 
-	panel.spinner = Spinner{Frames: nil}
+	panel.spinner = spinner.Spinner{Frames: nil}
 	panel.SetStatus(SubagentRunning)
 	icon, plain := panel.renderStatusIcon()
 	if plain != "◐" || !strings.Contains(stripANSI(icon), "◐") {

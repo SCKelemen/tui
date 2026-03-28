@@ -7,6 +7,7 @@ import (
 
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
+	"github.com/SCKelemen/tui/v2/spinner"
 	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -53,7 +54,7 @@ type SubagentPanel struct {
 
 	width int
 
-	spinner        Spinner
+	spinner        spinner.Spinner
 	spinnerIdx     int
 	lastTick       time.Time
 	focused        bool
@@ -120,13 +121,19 @@ func WithSubagentModel(model string) SubagentPanelOption {
 	}
 }
 
+// WithSubagentSpinner sets the spinner animation.
+func WithSubagentSpinner(s spinner.Spinner) SubagentPanelOption {
+	return func(p *SubagentPanel) {
+		p.spinner = s
+	}
+}
+
 // WithSubagentThinking sets prose/thinking text rendered under the header.
 func WithSubagentThinking(text string) SubagentPanelOption {
 	return func(p *SubagentPanel) {
 		p.thinking = text
 	}
 }
-
 // subagentPanelTickMsg animates spinner + elapsed time updates.
 type subagentPanelTickMsg struct {
 	now time.Time
@@ -142,7 +149,7 @@ func NewSubagentPanel(opts ...SubagentPanelOption) *SubagentPanel {
 		hiddenCount:    0,
 		elapsed:        0,
 		width:          36,
-		spinner:        SpinnerCircleQuarters,
+		spinner:        spinner.Braille,
 		spinnerIdx:     0,
 		runningColor:   style.ANSICyan,
 		successColor:   style.ANSIGreen,
@@ -247,6 +254,12 @@ func (p *SubagentPanel) View() string {
 		}
 		toolName := smartElideToolName(tool.Name, nameWidth)
 		line := fmt.Sprintf(" %s%s %s %s", p.connectorColor, connector, p.renderToolIcon(tool.Status), toolName)
+
+		// Dim older completed tools
+		if tool.Status == ToolCompleted && i < len(visible)-1 {
+			line = fmt.Sprintf(" %s%s %s %s%s%s", p.connectorColor, connector, p.renderToolIcon(tool.Status), style.ANSIDim, toolName, style.ANSIReset)
+		}
+
 		line += style.ANSIReset
 		lines = append(lines, p.fitToWidth(line))
 	}

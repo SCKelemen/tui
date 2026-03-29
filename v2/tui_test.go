@@ -158,21 +158,34 @@ func TestWindowSizeMsg(t *testing.T) {
 }
 
 func TestQuitKeys(t *testing.T) {
-	app := NewApplication()
+	t.Run("default quit key is ctrl+c only", func(t *testing.T) {
+		app := NewApplication()
 
-	tests := []tea.KeyMsg{
-		{Type: tea.KeyRunes, Runes: []rune{'q'}},
-		{Type: tea.KeyCtrlC},
-	}
-
-	for _, key := range tests {
-		_, cmd := app.Update(key)
-		if cmd == nil {
-			t.Errorf("expected quit command for key %v, got nil", key)
+		_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		if cmd != nil {
+			t.Fatal("expected no quit command for key q by default")
 		}
-	}
-}
 
+		_, cmd = app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+		if cmd == nil {
+			t.Fatal("expected quit command for key ctrl+c by default")
+		}
+	})
+
+	t.Run("custom quit key via option", func(t *testing.T) {
+		app := NewApplication(WithQuitKey("q"))
+
+		_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		if cmd == nil {
+			t.Fatal("expected quit command for key q when configured with WithQuitKey")
+		}
+
+		_, cmd = app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+		if cmd != nil {
+			t.Fatal("expected no quit command for key ctrl+c when quit key is set to q")
+		}
+	})
+}
 func TestView(t *testing.T) {
 	app := NewApplication()
 	if got := app.View(); got != "No components" {

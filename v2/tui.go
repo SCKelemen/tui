@@ -1,6 +1,10 @@
 package tui
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // Component is the interface all TUI components must implement.
 type Component interface {
@@ -23,20 +27,43 @@ type Component interface {
 	Focused() bool
 }
 
+// ApplicationOption configures a new Application.
+type ApplicationOption func(*Application)
+
+// WithQuitKey sets the quit key for the application.
+func WithQuitKey(key string) ApplicationOption {
+	return func(a *Application) {
+		a.SetQuitKey(key)
+	}
+}
+
 // Application represents the main TUI application.
 type Application struct {
 	width      int
 	height     int
 	components []Component
 	focused    int // Index of currently focused component.
+	quitKey    string
 }
 
 // NewApplication creates a new TUI application.
-func NewApplication() *Application {
-	return &Application{
+func NewApplication(opts ...ApplicationOption) *Application {
+	a := &Application{
 		components: make([]Component, 0),
 		focused:    -1,
+		quitKey:    "ctrl+c",
 	}
+
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	return a
+}
+
+// SetQuitKey updates the key used to quit the application.
+func (a *Application) SetQuitKey(key string) {
+	a.quitKey = strings.ToLower(strings.TrimSpace(key))
 }
 
 // AddComponent adds a component to the application.
@@ -74,26 +101,6 @@ func (a *Application) Init() tea.Cmd {
 // Update handles messages.
 func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc":
-			return a, tea.Quit
-		case "tab":
-			return a, a.focusNext()
-		case "shift+tab":
-			return a, a.focusPrev()
-		case "ctrl+c":
-			// Forward ctrl+c to focused component first (e.g. copy selection).
-			// If the component returns a command, honor it; otherwise quit.
-			if a.focused >= 0 && a.focused < len(a.components) {
-				var cmd tea.Cmd
-				a.components[a.focused], cmd = a.components[a.focused].Update(msg)
-				if cmd != nil {
-					return a, cmd
-				}
-			}
-			return a, tea.Quit
-		}
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
@@ -105,9 +112,37 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 		return a, tea.Batch(cmds...)
+	case tea.MouseMsg:
+		if a.focused >= 0 && a.focused < len(a.components) {
+			var cmd tea.Cmd
+			a.components[a.focused], cmd = a.components[a.focused].Update(msg)
+			return a, cmd
+		}
+		return a, nil
+	case tea.KeyMsg:
+		// Always forward keys to the focused component first.
+		if a.focused >= 0 && a.focused < len(a.components) {
+			var cmd tea.Cmd
+			a.components[a.focused], cmd = a.components[a.focused].Update(msg)
+			if cmd != nil {
+				return a, cmd
+			}
+		}
+
+		switch msg.String() {
+		case "tab":
+			return a, a.focusNext()
+		case "shift+tab":
+			return a, a.focusPrev()
+		}
+
+		if a.quitKey != "" && msg.String() == a.quitKey {
+			return a, tea.Quit
+		}
+
+		return a, nil
 	}
 
-	// Forward all other messages (mouse events, remaining keys) to focused component.
 	if a.focused >= 0 && a.focused < len(a.components) {
 		var cmd tea.Cmd
 		a.components[a.focused], cmd = a.components[a.focused].Update(msg)

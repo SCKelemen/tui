@@ -274,3 +274,20 @@ func (h *Highlighter) HighlightLines(lines []string) []string {
 	}
 	return out
 }
+
+// HighlightCode highlights a multi-line code snippet for a language.
+func HighlightCode(code, language string) string {
+	if code == "" {
+		return ""
+	}
+
+	lang := parseSyntaxLanguage(language)
+	if lang == SyntaxLanguagePlain {
+		return code
+	}
+
+	h := NewHighlighter(lang)
+	lines := strings.Split(code, "\n")
+	highlighted := h.HighlightLines(lines)
+	return strings.Join(highlighted, "\n")
+}

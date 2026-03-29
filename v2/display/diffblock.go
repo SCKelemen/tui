@@ -42,12 +42,12 @@ type DiffBlock struct {
 	language    string
 	highlighter *Highlighter
 	expanded    bool
-	showContext int
-	maxLines    int
+	showContext     int
+	maxLines        int
+	hideLineNumbers bool
 
 	selMgr         *selection.SelectionManager
 	mouseSelection bool
-
 	// Design token colors
 	addBgColor     string // background for added lines
 	removeBgColor  string // background for removed lines
@@ -99,10 +99,16 @@ func WithDiffExpanded(expanded bool) DiffBlockOption {
 }
 func WithDiffContext(n int) DiffBlockOption    { return func(db *DiffBlock) { db.showContext = n } }
 func WithDiffMaxLines(max int) DiffBlockOption { return func(db *DiffBlock) { db.maxLines = max } }
+
+// WithDiffHideLineNumbers hides line numbers from the rendered output.
+// This makes terminal-native copy produce clean diff text.
+func WithDiffHideLineNumbers(hide bool) DiffBlockOption {
+	return func(d *DiffBlock) { d.hideLineNumbers = hide }
+}
+
 func WithDiffBlockMouseSelection(enabled bool) DiffBlockOption {
 	return func(db *DiffBlock) { db.mouseSelection = enabled }
 }
-
 // WithDiffBlockDesignTokens applies design system tokens to the diff block.
 func WithDiffBlockDesignTokens(dt *design.DesignTokens) DiffBlockOption {
 	return func(d *DiffBlock) {
@@ -377,6 +383,19 @@ func (db *DiffBlock) renderDiffLine(line DiffLine, row int) string {
 	removeBg := db.colorBg(db.removeBgColor, "")
 	surfaceBg := db.colorBg(db.surfaceColor, "")
 
+	if db.hideLineNumbers {
+		switch line.Type {
+		case DiffAdded:
+			return fmt.Sprintf("  %s+%s %s%s%s%s\n", addColor, style.ANSIReset, addBg, db.tintHighlightedContent(content, addColor), style.ANSIReset, surfaceBg)
+		case DiffRemoved:
+			return fmt.Sprintf("  %s-%s %s%s%s%s\n", removeColor, style.ANSIReset, removeBg, db.tintHighlightedContent(content, removeColor), style.ANSIReset, surfaceBg)
+		case DiffUnchanged:
+			return fmt.Sprintf("    %s%s%s\n", surfaceBg, content, style.ANSIReset)
+		default:
+			return fmt.Sprintf("    %s\n", content)
+		}
+	}
+
 	switch line.Type {
 	case DiffAdded:
 		return fmt.Sprintf("  %s%s%s %s+%s %s%s%s%s\n", lineNumColor, lineNumStr, style.ANSIReset, addColor, style.ANSIReset, addBg, db.tintHighlightedContent(content, addColor), style.ANSIReset, surfaceBg)
@@ -388,7 +407,6 @@ func (db *DiffBlock) renderDiffLine(line DiffLine, row int) string {
 		return fmt.Sprintf("        %s\n", content)
 	}
 }
-
 func (db *DiffBlock) highlightDiffContent(line DiffLine) string {
 	content := line.Content
 	if db.highlighter == nil {

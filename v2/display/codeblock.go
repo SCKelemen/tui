@@ -19,13 +19,13 @@ type CodeBlock struct {
 
 	selMgr                *selection.SelectionManager
 	mouseSelectionEnabled bool
-
-	operation   string
-	filename    string
-	summary     string
-	lines       []string
-	language    string
-	highlighter *Highlighter
+	hideLineNumbers       bool
+	operation             string
+	filename              string
+	summary               string
+	lines                 []string
+	language              string
+	highlighter           *Highlighter
 
 	expanded    bool
 	maxLines    int
@@ -121,6 +121,12 @@ func WithPreviewLines(n int) CodeBlockOption {
 
 func WithCodeBlockMouseSelection(enabled bool) CodeBlockOption {
 	return func(cb *CodeBlock) { cb.mouseSelectionEnabled = enabled }
+}
+
+// WithCodeHideLineNumbers hides line numbers from the rendered output.
+// This makes terminal-native copy produce clean source code.
+func WithCodeHideLineNumbers(hide bool) CodeBlockOption {
+	return func(cb *CodeBlock) { cb.hideLineNumbers = hide }
 }
 
 // WithCodeBlockDesignTokens applies design system tokens to the code block.
@@ -332,6 +338,9 @@ func (cb *CodeBlock) renderExpanded() string {
 }
 
 func (cb *CodeBlock) renderLine(lineNum int, content string) string {
+	if cb.hideLineNumbers {
+		return fmt.Sprintf("  %s\n", content)
+	}
 	lineNumWidth := cb.lineNumWidth()
 	return fmt.Sprintf("  %s%*d%s %s\n", style.ANSIDim, lineNumWidth, lineNum, style.ANSIReset, content)
 }
@@ -340,7 +349,6 @@ func (cb *CodeBlock) lineNumWidth() int {
 	maxLineNum := cb.startLine + len(cb.lines) - 1
 	return len(fmt.Sprintf("%d", maxLineNum))
 }
-
 func (cb *CodeBlock) visibleLines() []string {
 	if cb.expanded {
 		linesToShow := len(cb.lines)

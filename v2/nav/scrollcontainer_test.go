@@ -163,7 +163,7 @@ func TestScrollContainerViewportClipping(t *testing.T) {
 }
 
 func TestScrollContainerKeyboardNavigation(t *testing.T) {
-	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(4))
+	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(4), WithScrollAcceleration(false))
 	sc.viewportWidth = 20
 	sc.Focus()
 	sc.AddChild(&scrollTestChild{view: "1\n2\n3\n4\n5\n6\n7\n8"})
@@ -278,7 +278,7 @@ func TestScrollContainerWindowSizeHandling(t *testing.T) {
 }
 
 func TestScrollContainerMouseWheel(t *testing.T) {
-	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(3))
+	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(3), WithScrollAcceleration(false))
 	sc.viewportWidth = 20
 	sc.Focus()
 	sc.AddChild(&scrollTestChild{view: "1\n2\n3\n4\n5\n6"})
@@ -291,5 +291,83 @@ func TestScrollContainerMouseWheel(t *testing.T) {
 	sc.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
 	if sc.GetScrollOffset() != 0 {
 		t.Fatalf("expected offset 0 after wheel up, got %d", sc.GetScrollOffset())
+	}
+}
+
+func TestScrollContainerScrollAcceleration(t *testing.T) {
+	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(3))
+	sc.viewportWidth = 20
+	sc.Focus()
+	sc.AddChild(&scrollTestChild{view: "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12"})
+
+	sc.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if sc.GetScrollOffset() != 1 {
+		t.Fatalf("expected offset 1 after first down key, got %d", sc.GetScrollOffset())
+	}
+
+	sc.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if sc.GetScrollOffset() != 3 {
+		t.Fatalf("expected accelerated offset 3 after second down key, got %d", sc.GetScrollOffset())
+	}
+
+	sc.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if sc.GetScrollOffset() != 6 {
+		t.Fatalf("expected accelerated offset 6 after third down key, got %d", sc.GetScrollOffset())
+	}
+}
+
+func TestScrollContainerScrollAccelerationDisabled(t *testing.T) {
+	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(3), WithScrollAcceleration(false))
+	sc.viewportWidth = 20
+	sc.Focus()
+	sc.AddChild(&scrollTestChild{view: "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12"})
+
+	sc.Update(tea.KeyMsg{Type: tea.KeyDown})
+	sc.Update(tea.KeyMsg{Type: tea.KeyDown})
+	sc.Update(tea.KeyMsg{Type: tea.KeyDown})
+
+	if sc.GetScrollOffset() != 3 {
+		t.Fatalf("expected non-accelerated offset 3, got %d", sc.GetScrollOffset())
+	}
+}
+
+func TestScrollContainerAutoScrollLockAndBoundaryState(t *testing.T) {
+	sc := NewScrollContainer(WithShowScrollbar(false), WithViewportHeight(2), WithAutoScroll(true), WithScrollAcceleration(false))
+	sc.viewportWidth = 20
+
+	sc.AddChild(&scrollTestChild{view: "row1"})
+	sc.AddChild(&scrollTestChild{view: "row2"})
+	sc.AddChild(&scrollTestChild{view: "row3"})
+
+	if !sc.IsAtBottom() {
+		t.Fatal("expected to be at bottom after auto-scroll")
+	}
+	if sc.ScrollLocked() {
+		t.Fatal("scroll should not be locked at bottom")
+	}
+
+	sc.Focus()
+	sc.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if !sc.ScrollLocked() {
+		t.Fatal("expected auto-scroll to lock after user scrolls up")
+	}
+	if !sc.IsAtTop() {
+		t.Fatal("expected to be at top after scrolling up")
+	}
+
+	sc.AddChild(&scrollTestChild{view: "row4"})
+	if sc.GetScrollOffset() != 0 {
+		t.Fatalf("expected locked scroll offset to stay at 0, got %d", sc.GetScrollOffset())
+	}
+	if !sc.ScrollLocked() {
+		t.Fatal("expected lock to remain after new content")
+	}
+
+	sc.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if !sc.IsAtBottom() {
+		t.Fatal("expected to be at bottom after G")
+	}
+	if sc.ScrollLocked() {
+		t.Fatal("expected lock to clear after G")
 	}
 }

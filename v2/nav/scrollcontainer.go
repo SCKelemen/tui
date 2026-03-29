@@ -2,6 +2,7 @@ package nav
 
 import (
 	"strings"
+	"time"
 
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
@@ -11,17 +12,22 @@ import (
 
 // ScrollContainer is a viewport wrapper for heterogeneous child components.
 type ScrollContainer struct {
-	children       []tui.Component
-	scrollOffset   int
-	viewportHeight int
-	viewportWidth  int
-	totalHeight    int
-	focused        bool
-	focusedChild   int
-	showScrollbar  bool
-	scrollbarChar  string
-	designTokens   *design.DesignTokens
-	autoScroll     bool
+	children           []tui.Component
+	scrollOffset       int
+	viewportHeight     int
+	viewportWidth      int
+	totalHeight        int
+	focused            bool
+	focusedChild       int
+	showScrollbar      bool
+	scrollbarChar      string
+	designTokens       *design.DesignTokens
+	autoScroll         bool
+	autoScrollLocked   bool
+	scrollAcceleration bool
+	lastScrollEventAt  time.Time
+	lastScrollDir      int
+	scrollStep         int
 }
 
 // ScrollContainerOption configures a ScrollContainer.
@@ -62,6 +68,21 @@ func WithScrollbarChar(char string) ScrollContainerOption {
 func WithAutoScroll(auto bool) ScrollContainerOption {
 	return func(sc *ScrollContainer) {
 		sc.autoScroll = auto
+		if !auto {
+			sc.autoScrollLocked = false
+		}
+	}
+}
+
+// WithScrollAcceleration toggles repeated-scroll acceleration.
+func WithScrollAcceleration(enabled bool) ScrollContainerOption {
+	return func(sc *ScrollContainer) {
+		sc.scrollAcceleration = enabled
+		if !enabled {
+			sc.scrollStep = 1
+			sc.lastScrollDir = 0
+			sc.lastScrollEventAt = time.Time{}
+		}
 	}
 }
 
@@ -78,13 +99,14 @@ func WithViewportHeight(height int) ScrollContainerOption {
 // NewScrollContainer creates a new scroll container.
 func NewScrollContainer(opts ...ScrollContainerOption) *ScrollContainer {
 	sc := &ScrollContainer{
-		children:      []tui.Component{},
-		focusedChild:  -1,
-		showScrollbar: true,
-		scrollbarChar: "█",
-		autoScroll:    false,
+		children:           []tui.Component{},
+		focusedChild:       -1,
+		showScrollbar:      true,
+		scrollbarChar:      "█",
+		autoScroll:         false,
+		scrollAcceleration: true,
+		scrollStep:         1,
 	}
-
 	for _, opt := range opts {
 		opt(sc)
 	}
@@ -105,17 +127,20 @@ func (sc *ScrollContainer) Update(msg tea.Msg) (tui.Component, tea.Cmd) {
 		sc.viewportHeight = msg.Height
 		sc.updateTotalHeight()
 		sc.clampScrollOffset()
+		if sc.IsAtBottom() {
+			sc.autoScrollLocked = false
+		}
 
 	case tea.MouseMsg:
 		if sc.focused {
 			switch msg.Button {
 			case tea.MouseButtonWheelDown:
-				sc.scrollOffset++
-				sc.clampScrollOffset()
+				step := sc.nextScrollStep(1)
+				sc.applyUserScroll(step)
 				return sc, nil
 			case tea.MouseButtonWheelUp:
-				sc.scrollOffset--
-				sc.clampScrollOffset()
+				step := sc.nextScrollStep(-1)
+				sc.applyUserScroll(-step)
 				return sc, nil
 			}
 		}
@@ -133,18 +158,27 @@ func (sc *ScrollContainer) Update(msg tea.Msg) (tui.Component, tea.Cmd) {
 		handled := true
 		switch msg.String() {
 		case "j", "down":
-			sc.scrollOffset++
+			step := sc.nextScrollStep(1)
+			sc.applyUserScroll(step)
 		case "k", "up":
-			sc.scrollOffset--
+			step := sc.nextScrollStep(-1)
+			sc.applyUserScroll(-step)
 		case "ctrl+d", "pgdown":
-			sc.scrollOffset += halfStep
+			sc.resetScrollAcceleration()
+			sc.applyUserScroll(halfStep)
 		case "ctrl+u", "pgup":
-			sc.scrollOffset -= halfStep
+			sc.resetScrollAcceleration()
+			sc.applyUserScroll(-halfStep)
 		case "G":
+			sc.resetScrollAcceleration()
 			sc.ScrollToBottom()
 			return sc, nil
 		case "g":
+			sc.resetScrollAcceleration()
 			sc.ScrollToTop()
+			if sc.autoScroll {
+				sc.autoScrollLocked = true
+			}
 			return sc, nil
 		case "tab":
 			sc.focusNextChild()
@@ -157,7 +191,6 @@ func (sc *ScrollContainer) Update(msg tea.Msg) (tui.Component, tea.Cmd) {
 		}
 
 		if handled {
-			sc.clampScrollOffset()
 			return sc, nil
 		}
 	}
@@ -166,16 +199,22 @@ func (sc *ScrollContainer) Update(msg tea.Msg) (tui.Component, tea.Cmd) {
 		updated, cmd := sc.children[sc.focusedChild].Update(msg)
 		sc.children[sc.focusedChild] = updated
 		sc.updateTotalHeight()
-		if sc.autoScroll {
+		if sc.autoScroll && !sc.autoScrollLocked {
 			sc.ScrollToBottom()
 		} else {
 			sc.clampScrollOffset()
+			if sc.IsAtBottom() {
+				sc.autoScrollLocked = false
+			}
 		}
 		return sc, cmd
 	}
 
 	sc.updateTotalHeight()
 	sc.clampScrollOffset()
+	if sc.IsAtBottom() {
+		sc.autoScrollLocked = false
+	}
 	return sc, nil
 }
 
@@ -278,10 +317,13 @@ func (sc *ScrollContainer) AddChild(c tui.Component) {
 		sc.children[sc.focusedChild].Focus()
 	}
 	sc.updateTotalHeight()
-	if sc.autoScroll {
+	if sc.autoScroll && !sc.autoScrollLocked {
 		sc.ScrollToBottom()
 	} else {
 		sc.clampScrollOffset()
+		if sc.IsAtBottom() {
+			sc.autoScrollLocked = false
+		}
 	}
 }
 
@@ -324,10 +366,13 @@ func (sc *ScrollContainer) SetChildren(children []tui.Component) {
 	}
 
 	sc.updateTotalHeight()
-	if sc.autoScroll {
+	if sc.autoScroll && !sc.autoScrollLocked {
 		sc.ScrollToBottom()
 	} else {
 		sc.clampScrollOffset()
+		if sc.IsAtBottom() {
+			sc.autoScrollLocked = false
+		}
 	}
 }
 
@@ -347,12 +392,16 @@ func (sc *ScrollContainer) ChildCount() int {
 func (sc *ScrollContainer) ScrollTo(offset int) {
 	sc.scrollOffset = offset
 	sc.clampScrollOffset()
+	if sc.IsAtBottom() {
+		sc.autoScrollLocked = false
+	}
 }
 
 // ScrollToBottom jumps to the end of content.
 func (sc *ScrollContainer) ScrollToBottom() {
 	sc.updateTotalHeight()
 	sc.scrollOffset = sc.maxScrollOffset()
+	sc.autoScrollLocked = false
 }
 
 // ScrollToTop jumps to the start of content.
@@ -363,6 +412,22 @@ func (sc *ScrollContainer) ScrollToTop() {
 // GetScrollOffset returns the current scroll offset.
 func (sc *ScrollContainer) GetScrollOffset() int {
 	return sc.scrollOffset
+}
+
+// IsAtBottom reports whether the viewport is at the bottom.
+func (sc *ScrollContainer) IsAtBottom() bool {
+	sc.updateTotalHeight()
+	return sc.scrollOffset >= sc.maxScrollOffset()
+}
+
+// IsAtTop reports whether the viewport is at the top.
+func (sc *ScrollContainer) IsAtTop() bool {
+	return sc.scrollOffset <= 0
+}
+
+// ScrollLocked reports whether auto-scroll is disabled by user scroll.
+func (sc *ScrollContainer) ScrollLocked() bool {
+	return sc.autoScroll && sc.autoScrollLocked
 }
 
 // FocusChild focuses a specific child index.
@@ -420,6 +485,51 @@ func (sc *ScrollContainer) clampScrollOffset() {
 	if sc.scrollOffset > maxOffset {
 		sc.scrollOffset = maxOffset
 	}
+}
+
+func (sc *ScrollContainer) applyUserScroll(delta int) {
+	if delta == 0 {
+		return
+	}
+
+	sc.scrollOffset += delta
+	sc.clampScrollOffset()
+
+	if sc.autoScroll {
+		if delta < 0 {
+			sc.autoScrollLocked = true
+		}
+		if sc.IsAtBottom() {
+			sc.autoScrollLocked = false
+		}
+	}
+}
+
+func (sc *ScrollContainer) nextScrollStep(direction int) int {
+	if direction == 0 {
+		sc.resetScrollAcceleration()
+		return 1
+	}
+	if !sc.scrollAcceleration {
+		return 1
+	}
+
+	now := time.Now()
+	if sc.lastScrollDir == direction && !sc.lastScrollEventAt.IsZero() && now.Sub(sc.lastScrollEventAt) <= 100*time.Millisecond {
+		sc.scrollStep = min(sc.scrollStep+1, 5)
+	} else {
+		sc.scrollStep = 1
+	}
+
+	sc.lastScrollDir = direction
+	sc.lastScrollEventAt = now
+	return sc.scrollStep
+}
+
+func (sc *ScrollContainer) resetScrollAcceleration() {
+	sc.scrollStep = 1
+	sc.lastScrollDir = 0
+	sc.lastScrollEventAt = time.Time{}
 }
 
 func (sc *ScrollContainer) focusNextChild() {

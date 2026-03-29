@@ -76,12 +76,23 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "esc":
 			return a, tea.Quit
 		case "tab":
 			return a, a.focusNext()
 		case "shift+tab":
 			return a, a.focusPrev()
+		case "ctrl+c":
+			// Forward ctrl+c to focused component first (e.g. copy selection).
+			// If the component returns a command, honor it; otherwise quit.
+			if a.focused >= 0 && a.focused < len(a.components) {
+				var cmd tea.Cmd
+				a.components[a.focused], cmd = a.components[a.focused].Update(msg)
+				if cmd != nil {
+					return a, cmd
+				}
+			}
+			return a, tea.Quit
 		}
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -96,6 +107,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(cmds...)
 	}
 
+	// Forward all other messages (mouse events, remaining keys) to focused component.
 	if a.focused >= 0 && a.focused < len(a.components) {
 		var cmd tea.Cmd
 		a.components[a.focused], cmd = a.components[a.focused].Update(msg)

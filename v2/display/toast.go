@@ -178,7 +178,6 @@ func (t *Toast) View() string {
 				line = truncateANSI(line, t.width-3) + "..."
 			}
 		}
-
 		if t.focused {
 			line = style.ANSIInverse + line + style.ANSIReset
 		}

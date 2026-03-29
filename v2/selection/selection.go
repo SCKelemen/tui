@@ -96,7 +96,9 @@ func (sm *SelectionManager) HandleMouse(msg tea.MouseMsg) bool {
 		if !sm.selection.Active {
 			return false
 		}
-
+		if contentX == sm.selection.EndX && contentY == sm.selection.EndY {
+			return false // no change, skip re-render
+		}
 		sm.selection.EndX = contentX
 		sm.selection.EndY = contentY
 		return within
@@ -191,6 +193,11 @@ func (sm *SelectionManager) StyledLine(line string, row int) string {
 		return line
 	}
 
+	startRow, startCol, endRow, endCol := sm.normalizedSelection()
+	if row < startRow || row > endRow {
+		return line
+	}
+
 	onCode := style.ANSIInverse
 	offCode := style.ANSIReset
 	if sm.designTokens != nil {
@@ -205,12 +212,22 @@ func (sm *SelectionManager) StyledLine(line string, row int) string {
 	var b strings.Builder
 	selected := false
 	for col, r := range []rune(line) {
-		currentSelected := sm.IsSelected(row, col)
-		if currentSelected && !selected {
+		var inSelection bool
+		if startRow == endRow {
+			inSelection = col >= startCol && col < endCol
+		} else if row == startRow {
+			inSelection = col >= startCol
+		} else if row == endRow {
+			inSelection = col < endCol
+		} else {
+			inSelection = true
+		}
+
+		if inSelection && !selected {
 			b.WriteString(onCode)
 			selected = true
 		}
-		if !currentSelected && selected {
+		if !inSelection && selected {
 			b.WriteString(offCode)
 			selected = false
 		}

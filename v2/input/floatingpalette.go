@@ -2,12 +2,12 @@ package input
 
 import (
 	"fmt"
-	"strings"
-
 	design "github.com/SCKelemen/design-system"
 	tui "github.com/SCKelemen/tui/v2"
 	"github.com/SCKelemen/tui/v2/style"
 	tea "github.com/charmbracelet/bubbletea"
+	"sort"
+	"strings"
 )
 
 // PaletteCommand is a command shown in the floating command palette.
@@ -73,6 +73,8 @@ func WithFloatingPaletteTheme(theme string) FloatingPaletteOption {
 type FloatingPalette struct {
 	commands         []PaletteCommand
 	filtered         []PaletteCommand
+	matchResults     map[int]FuzzyMatch
+	fuzzy            *FuzzyMatcher
 	input            string
 	cursorPos        int
 	selectedIndex    int
@@ -94,6 +96,8 @@ type FloatingPalette struct {
 func NewFloatingPalette(commands []PaletteCommand, opts ...FloatingPaletteOption) *FloatingPalette {
 	fp := &FloatingPalette{
 		commands:         append([]PaletteCommand(nil), commands...),
+		matchResults:     make(map[int]FuzzyMatch),
+		fuzzy:            NewFuzzyMatcher(),
 		maxResults:       10,
 		horizontalMargin: 8,
 		prompt:           "> ",
@@ -101,7 +105,6 @@ func NewFloatingPalette(commands []PaletteCommand, opts ...FloatingPaletteOption
 		descriptionColor: style.ANSIDim,
 		selectedColor:    style.ANSIInverse,
 	}
-
 	for _, opt := range opts {
 		opt(fp)
 	}
@@ -309,24 +312,51 @@ func (fp *FloatingPalette) GetSelectedCommand() *PaletteCommand {
 }
 
 func (fp *FloatingPalette) refilter() {
-	query := strings.ToLower(strings.TrimSpace(fp.input))
+	if fp.fuzzy == nil {
+		fp.fuzzy = NewFuzzyMatcher()
+	}
+
+	query := strings.TrimSpace(fp.input)
+	fp.matchResults = make(map[int]FuzzyMatch)
 	if query == "" {
 		fp.filtered = append([]PaletteCommand(nil), fp.commands...)
+		if fp.selectedIndex >= len(fp.filtered) {
+			fp.selectedIndex = maxFloatingPalette(0, len(fp.filtered)-1)
+		}
 		return
 	}
 
-	filtered := make([]PaletteCommand, 0, len(fp.commands))
-	for _, cmd := range fp.commands {
-		if strings.Contains(strings.ToLower(cmd.Name), query) {
-			filtered = append(filtered, cmd)
-		}
+	type scoredCommand struct {
+		command PaletteCommand
+		match   FuzzyMatch
 	}
-	fp.filtered = filtered
+
+	scored := make([]scoredCommand, 0, len(fp.commands))
+	for _, cmd := range fp.commands {
+		match := fp.fuzzy.Match(query, cmd.Name)
+		if !match.Matched {
+			continue
+		}
+		scored = append(scored, scoredCommand{command: cmd, match: match})
+	}
+
+	sort.SliceStable(scored, func(i, j int) bool {
+		if scored[i].match.Score != scored[j].match.Score {
+			return scored[i].match.Score > scored[j].match.Score
+		}
+		return strings.ToLower(scored[i].command.Name) < strings.ToLower(scored[j].command.Name)
+	})
+
+	fp.filtered = make([]PaletteCommand, 0, len(scored))
+	for i, candidate := range scored {
+		fp.filtered = append(fp.filtered, candidate.command)
+		fp.matchResults[i] = candidate.match
+	}
+
 	if fp.selectedIndex >= len(fp.filtered) {
 		fp.selectedIndex = maxFloatingPalette(0, len(fp.filtered)-1)
 	}
 }
-
 func (fp *FloatingPalette) renderInputLine(contentWidth int) string {
 	if contentWidth <= 0 {
 		return ""
@@ -355,10 +385,20 @@ func (fp *FloatingPalette) renderResults(contentWidth int) []string {
 		return nil
 	}
 
+	highlightColor := fp.matchHighlightColor()
+	queryActive := strings.TrimSpace(fp.input) != ""
+
 	lines := make([]string, 0, limit)
 	for i := 0; i < limit; i++ {
 		cmd := fp.filtered[i]
-		line := fmt.Sprintf(" %-10s %s%s%s", cmd.Name, fp.descriptionColor, cmd.Description, style.ANSIReset)
+		name := cmd.Name
+		if queryActive {
+			if match, ok := fp.matchResults[i]; ok {
+				name = HighlightMatch(match, highlightColor)
+			}
+		}
+
+		line := fmt.Sprintf(" %-10s %s%s%s", name, fp.descriptionColor, cmd.Description, style.ANSIReset)
 		if cmd.Shortcut != "" {
 			line += fmt.Sprintf(" %s%s%s", style.ANSIDim, cmd.Shortcut, style.ANSIReset)
 		}
@@ -377,7 +417,6 @@ func (fp *FloatingPalette) renderResults(contentWidth int) []string {
 
 	return lines
 }
-
 func (fp *FloatingPalette) applyDesignTokens(tokens *design.DesignTokens) {
 	if tokens == nil {
 		return
@@ -391,10 +430,18 @@ func (fp *FloatingPalette) applyDesignTokens(tokens *design.DesignTokens) {
 	}
 }
 
+func (fp *FloatingPalette) matchHighlightColor() string {
+	if fp.designTokens != nil {
+		if accent := strings.TrimSpace(fp.designTokens.Accent); accent != "" {
+			return accent
+		}
+	}
+	return "#4B73FF"
+}
+
 func stripANSIFloatingPalette(s string) string {
 	var result strings.Builder
 	inEscape := false
-
 	for _, r := range s {
 		if r == '\x1b' {
 			inEscape = true

@@ -34,11 +34,12 @@ type CommandPalette struct {
 	visible    bool
 	focused    bool
 	textInput  textinput.Model
-	commands   []Command
-	filtered   []Command
-	selected   int
-	maxVisible int
-
+	commands       []Command
+	filtered       []Command
+	selected       int
+	maxVisible     int
+	fuzzy          *FuzzyMatcher
+	matchPositions map[int]FuzzyMatch
 	// Design token colors
 	surfaceColor string // overlay background
 	borderColor  string // border around palette
@@ -85,19 +86,20 @@ func NewCommandPalette(commands []Command, opts ...CommandPaletteOption) *Comman
 	ti.Width = 50
 
 	cp := &CommandPalette{
-		textInput:     ti,
-		commands:      commands,
-		filtered:      commands,
-		maxVisible:    8,
-		visible:       false,
-		surfaceColor:  "#353A43",
-		borderColor:   "#3C414B",
-		accentColor:   "#61AFEF",
-		mutedColor:    "#7A818A",
-		textColor:     "#E5E7EB",
-		selectionBg:   "#31353D",
+		textInput:       ti,
+		commands:        commands,
+		filtered:        commands,
+		maxVisible:      8,
+		visible:         false,
+		fuzzy:           NewFuzzyMatcher(),
+		matchPositions:  make(map[int]FuzzyMatch),
+		surfaceColor:    "#353A43",
+		borderColor:     "#3C414B",
+		accentColor:     "#61AFEF",
+		mutedColor:      "#7A818A",
+		textColor:       "#E5E7EB",
+		selectionBg:     "#31353D",
 	}
-
 	cp.applyTextInputStyles()
 	for _, opt := range opts {
 		opt(cp)
@@ -206,7 +208,10 @@ func (cp *CommandPalette) View() string {
 	text := ansiOrFallback(style.ANSIColorFromHex(cp.textColor), style.ANSIReset)
 	muted := ansiOrFallback(style.ANSIColorFromHex(cp.mutedColor), style.ANSIDim)
 	selectionBg := ansiOrFallback(style.ANSIBackgroundColorFromHex(cp.selectionBg), style.ANSIInverse)
-
+	highlightColor := strings.TrimSpace(cp.accentColor)
+	if highlightColor == "" {
+		highlightColor = "#4B73FF"
+	}
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString(surfaceBg)
 	title := " Command Palette "
@@ -250,11 +255,27 @@ func (cp *CommandPalette) View() string {
 		b.WriteString(muted + style.Pad("No commands found", paletteWidth-4) + style.ANSIReset)
 		b.WriteString(surfaceBg + " " + style.ANSIReset + border + "│" + style.ANSIReset + "\n")
 	} else {
+		query := strings.ToLower(strings.TrimSpace(cp.textInput.Value()))
 		for i, cmd := range visibleCommands {
 			b.WriteString(strings.Repeat(" ", startX))
 			b.WriteString(border + "│" + style.ANSIReset)
+			nameBase := style.TruncateMiddle(cmd.Name, 30, "…")
+			name := nameBase
+			if match, ok := cp.matchPositions[i]; ok {
+				if nameBase == cmd.Name {
+					name = HighlightMatch(match, highlightColor)
+				} else {
+					truncatedMatch := cp.fuzzy.Match(query, nameBase)
+					if truncatedMatch.Matched {
+						name = HighlightMatch(truncatedMatch, highlightColor)
+					}
+				}
+			}
+			nameWidth := style.StringWidth(stripANSICommandPalette(name))
+			if nameWidth < 30 {
+				name += strings.Repeat(" ", 30-nameWidth)
+			}
 
-			name := style.Pad(style.TruncateMiddle(cmd.Name, 30, "…"), 30)
 			currentLen := 33 + style.StringWidth(cmd.Keybinding)
 			linePadding := paletteWidth - currentLen - 3
 			if linePadding < 0 {
@@ -283,7 +304,6 @@ func (cp *CommandPalette) View() string {
 			b.WriteString(border + "│" + style.ANSIReset + "\n")
 		}
 	}
-
 	b.WriteString(strings.Repeat(" ", startX))
 	b.WriteString(border + "└")
 	footer := fmt.Sprintf(" %d commands ", len(cp.filtered))
@@ -320,10 +340,10 @@ func (cp *CommandPalette) Show() {
 	cp.visible = true
 	cp.textInput.SetValue("")
 	cp.filtered = cp.commands
+	cp.matchPositions = make(map[int]FuzzyMatch)
 	cp.selected = 0
 	cp.textInput.Focus()
 }
-
 // Hide conceals the command palette.
 func (cp *CommandPalette) Hide() {
 	cp.visible = false
@@ -351,24 +371,41 @@ func (cp *CommandPalette) applyTextInputStyles() {
 // filterCommands filters the command list based on search query.
 func (cp *CommandPalette) filterCommands() {
 	query := strings.ToLower(strings.TrimSpace(cp.textInput.Value()))
-
 	if query == "" {
 		cp.filtered = cp.commands
+		cp.matchPositions = make(map[int]FuzzyMatch)
 		return
 	}
 
 	type scoredCommand struct {
-		command Command
-		score   int
+		command   Command
+		score     int
+		nameMatch FuzzyMatch
 	}
 
 	scored := make([]scoredCommand, 0, len(cp.commands))
 	for _, cmd := range cp.commands {
-		score, ok := commandMatchScore(query, cmd)
-		if !ok {
+		nameMatch := cp.fuzzy.Match(query, cmd.Name)
+		descMatch := cp.fuzzy.Match(query, cmd.Description)
+		catMatch := cp.fuzzy.Match(query, cmd.Category)
+
+		bestScore := -1
+		matched := false
+		for _, match := range []FuzzyMatch{nameMatch, descMatch, catMatch} {
+			if !match.Matched {
+				continue
+			}
+			matched = true
+			if match.Score > bestScore {
+				bestScore = match.Score
+			}
+		}
+
+		if !matched {
 			continue
 		}
-		scored = append(scored, scoredCommand{command: cmd, score: score})
+
+		scored = append(scored, scoredCommand{command: cmd, score: bestScore, nameMatch: nameMatch})
 	}
 
 	sort.SliceStable(scored, func(i, j int) bool {
@@ -379,11 +416,14 @@ func (cp *CommandPalette) filterCommands() {
 	})
 
 	cp.filtered = make([]Command, 0, len(scored))
-	for _, item := range scored {
+	cp.matchPositions = make(map[int]FuzzyMatch, len(scored))
+	for i, item := range scored {
 		cp.filtered = append(cp.filtered, item.command)
+		if item.nameMatch.Matched {
+			cp.matchPositions[i] = item.nameMatch
+		}
 	}
 }
-
 func commandMatchScore(query string, cmd Command) (int, bool) {
 	name := strings.ToLower(cmd.Name)
 	desc := strings.ToLower(cmd.Description)

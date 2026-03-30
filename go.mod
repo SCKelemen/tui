@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	github.com/SCKelemen/cli v1.0.2
 	github.com/SCKelemen/color v1.0.5
-	github.com/SCKelemen/design-system v1.0.2
+	github.com/SCKelemen/design-system v1.3.0
 	github.com/SCKelemen/layout v1.1.3
 	github.com/SCKelemen/text v1.1.3
 	github.com/charmbracelet/bubbles v0.21.0

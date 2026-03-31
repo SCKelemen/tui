@@ -52,18 +52,17 @@ func (fb *FrameBuffer) Resize(width, height int) {
 	fb.dirty = true
 }
 
-// WriteFrame takes a complete rendered frame string (the output of View()),
-// splits it into lines, diffs against the front buffer, and writes only
-// the changed lines to the terminal using cursor addressing.
-func (fb *FrameBuffer) WriteFrame(frame string) {
+// Render takes a complete rendered frame string (the output of View()),
+// splits it into lines, diffs against the front buffer, and returns ANSI
+// sequences for only the changed lines.
+func (fb *FrameBuffer) Render(frame string) string {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
 	fb.buildBackBuffer(frame)
 
 	if len(fb.front) == 0 || fb.dirty {
-		fb.flushLocked()
-		return
+		return fb.flushLocked()
 	}
 
 	var out strings.Builder
@@ -78,11 +77,19 @@ func (fb *FrameBuffer) WriteFrame(frame string) {
 		changed = true
 	}
 
+	output := ""
 	if changed {
-		_, _ = io.WriteString(fb.writer, out.String())
+		output = out.String()
+		_, _ = io.WriteString(fb.writer, output)
 	}
 
 	fb.syncFrontToBack()
+	return output
+}
+
+// WriteFrame writes the rendered ANSI diff output to the configured writer.
+func (fb *FrameBuffer) WriteFrame(frame string) {
+	_ = fb.Render(frame)
 }
 
 // Flush writes the entire back buffer to the terminal. Used on first render
@@ -91,7 +98,7 @@ func (fb *FrameBuffer) Flush() {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
-	fb.flushLocked()
+	_ = fb.flushLocked()
 }
 
 // Clear clears both buffers and the terminal screen.
@@ -146,11 +153,11 @@ func (fb *FrameBuffer) ShowCursor() {
 	_, _ = io.WriteString(fb.writer, "\033[?25h")
 }
 
-func (fb *FrameBuffer) flushLocked() {
+func (fb *FrameBuffer) flushLocked() string {
 	if fb.height <= 0 {
 		fb.front = nil
 		fb.dirty = false
-		return
+		return ""
 	}
 
 	var out strings.Builder
@@ -158,11 +165,12 @@ func (fb *FrameBuffer) flushLocked() {
 		fmt.Fprintf(&out, "\033[%d;1H%s\033[K", i+1, fb.back[i])
 	}
 
-	_, _ = io.WriteString(fb.writer, out.String())
+	output := out.String()
+	_, _ = io.WriteString(fb.writer, output)
 	fb.syncFrontToBack()
 	fb.dirty = false
+	return output
 }
-
 func (fb *FrameBuffer) buildBackBuffer(frame string) {
 	if fb.height < 0 {
 		fb.height = 0
@@ -171,11 +179,24 @@ func (fb *FrameBuffer) buildBackBuffer(frame string) {
 		fb.width = 0
 	}
 
+	lines := strings.Split(frame, "\n")
+	if fb.height == 0 {
+		fb.height = len(lines)
+	}
+	if fb.width == 0 {
+		maxWidth := 0
+		for _, line := range lines {
+			if len(line) > maxWidth {
+				maxWidth = len(line)
+			}
+		}
+		fb.width = maxWidth
+	}
+
 	if len(fb.back) != fb.height {
 		fb.back = make([]string, fb.height)
 	}
 
-	lines := strings.Split(frame, "\n")
 	for i := 0; i < fb.height; i++ {
 		line := ""
 		if i < len(lines) {
@@ -184,7 +205,6 @@ func (fb *FrameBuffer) buildBackBuffer(frame string) {
 		fb.back[i] = normalizeFrameLine(line, fb.width)
 	}
 }
-
 func (fb *FrameBuffer) syncFrontToBack() {
 	if len(fb.front) != fb.height {
 		fb.front = make([]string, fb.height)

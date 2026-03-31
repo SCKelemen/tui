@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"io"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,6 +45,7 @@ type Application struct {
 	components []Component
 	focused    int // Index of currently focused component.
 	quitKey    string
+	frameBuf   *FrameBuffer
 }
 
 // NewApplication creates a new TUI application.
@@ -52,8 +54,8 @@ func NewApplication(opts ...ApplicationOption) *Application {
 		components: make([]Component, 0),
 		focused:    -1,
 		quitKey:    "ctrl+c",
+		frameBuf:   NewFrameBuffer(io.Discard, 0, 0),
 	}
-
 	for _, opt := range opts {
 		opt(a)
 	}
@@ -104,6 +106,9 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		if a.frameBuf != nil {
+			a.frameBuf.Resize(msg.Width, msg.Height)
+		}
 
 		var cmds []tea.Cmd
 		for i, c := range a.components {
@@ -154,17 +159,21 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the application.
 func (a *Application) View() string {
-	if len(a.components) == 0 {
-		return "No components"
+	frame := "No components"
+	if len(a.components) > 0 {
+		var view string
+		for _, c := range a.components {
+			view += c.View()
+		}
+		frame = view
 	}
 
-	var view string
-	for _, c := range a.components {
-		view += c.View()
+	if a.frameBuf == nil {
+		a.frameBuf = NewFrameBuffer(io.Discard, a.width, a.height)
 	}
-	return view
+
+	return a.frameBuf.Render(frame)
 }
-
 func (a *Application) focusNext() tea.Cmd {
 	if len(a.components) == 0 {
 		return nil

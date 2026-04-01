@@ -1,11 +1,12 @@
 package tui
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
 type mockComponent struct {
 	focused     bool
 	updateCount int
@@ -186,9 +187,16 @@ func TestQuitKeys(t *testing.T) {
 		}
 	})
 }
+var ansiControlRE = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+
+func normalizeFrameBufferOutput(s string) string {
+	cleaned := ansiControlRE.ReplaceAllString(s, "")
+	return strings.TrimRight(cleaned, " \n\r\t")
+}
+
 func TestView(t *testing.T) {
 	app := NewApplication()
-	if got := app.View(); got != "No components" {
+	if got := normalizeFrameBufferOutput(app.View()); got != "No components" {
 		t.Fatalf("expected %q, got %q", "No components", got)
 	}
 
@@ -197,7 +205,7 @@ func TestView(t *testing.T) {
 	app.AddComponent(c1)
 	app.AddComponent(c2)
 
-	if got := app.View(); got != "onetwo" {
+	if got := normalizeFrameBufferOutput(app.View()); got != "onetwo" {
 		t.Fatalf("expected concatenated view %q, got %q", "onetwo", got)
 	}
 }

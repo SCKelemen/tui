@@ -46,8 +46,10 @@ github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
 github.com/google/cel-go v0.26.1 h1:iPbVVEdkhTX++hpe3lzSk7D3G3QSYqLGoHOcEio+UXQ=
 github.com/google/cel-go v0.26.1/go.mod h1:A9O8OU9rdvrK5MQyrqfIxo1a0u4g3sF8KB6PUIaryMM=
-github.com/junegunn/fzf v0.70.0 h1:TKwamTeB11uVqAHtJczhPmg/I1MtX4nBUiUKa+rMQ2k=
-github.com/junegunn/fzf v0.70.0/go.mod h1:xlXX2/rmsccKQUnr9QOXPDi5DyV9cM0UjKy/huScBeE=
+github.com/junegunn/fzf v0.71.0 h1:vPmJH1MUlysSczjn2HZ6+6KSMe8HxXUy323g9x9RmUQ=
+github.com/junegunn/fzf v0.71.0/go.mod h1:xlXX2/rmsccKQUnr9QOXPDi5DyV9cM0UjKy/huScBeE=
+github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 h1:7dYDtfMDfKzjT+DVfIS4iqknSEKtZpEcXtu6vuaasHs=
+github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741/go.mod h1:6EILKtGpo5t+KLb85LNZLAF6P9LKp78hJI80PXMcn3c=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=

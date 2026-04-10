@@ -18,6 +18,7 @@ const cellColorEpsilon = 3
 // wide glyph.
 type Cell struct {
 	Rune          rune
+	Grapheme      string
 	Width         int
 	Fg            lipgloss.Color
 	Bg            lipgloss.Color
@@ -111,29 +112,32 @@ func (cb *CellBuffer) WriteString(x, y int, text string, fg, bg lipgloss.Color) 
 	}
 
 	col := x
-	for _, r := range text {
-		if r == '\n' {
+	it := NewGraphemeIterator(text)
+	for {
+		cluster, ok := it.Next()
+		if !ok {
 			break
 		}
 
-		w := runewidth.RuneWidth(r)
-		if w <= 0 {
+		clusterText := cluster.String()
+		if firstRuneInString(clusterText) == '\n' {
+			break
+		}
+		if cluster.Width <= 0 {
 			continue
 		}
-		if w > 2 {
-			w = 1
-		}
-		if col+w > cb.width {
+		if col+cluster.Width > cb.width {
 			break
 		}
 
 		cb.SetCell(col, y, Cell{
-			Rune:  r,
-			Width: w,
-			Fg:    fg,
-			Bg:    bg,
+			Rune:     firstRuneInString(clusterText),
+			Grapheme: clusterText,
+			Width:    cluster.Width,
+			Fg:       fg,
+			Bg:       bg,
 		})
-		col += w
+		col += cluster.Width
 	}
 }
 
@@ -223,11 +227,10 @@ func (cb *CellBuffer) writeRun(out *strings.Builder, state *ansiState, run []Cel
 			continue
 		}
 		applyCellStyle(out, state, cell)
-		out.WriteRune(renderRune(cell))
+		out.WriteString(renderCellText(cell))
 		advanceCursor(state, cell)
 	}
 }
-
 func (cb *CellBuffer) clearOverlapAt(x, y int) {
 	if !cb.inBounds(x, y) {
 		return
@@ -297,43 +300,58 @@ func (cb *CellBuffer) index(x, y int) int {
 }
 
 func blankCell() Cell {
-	return Cell{Rune: ' ', Width: 1}
+	return Cell{Rune: ' ', Grapheme: " ", Width: 1}
 }
 
 func continuationCell(base Cell) Cell {
 	base.Rune = 0
+	base.Grapheme = ""
 	base.Width = 0
 	return base
 }
 
 func normalizeCell(cell Cell) Cell {
+	if cell.Grapheme == "" && cell.Rune != 0 {
+		cell.Grapheme = string(cell.Rune)
+	}
 	if cell.Width <= 0 {
-		if cell.Rune == 0 {
-			return blankCell()
+		switch {
+		case cell.Grapheme != "":
+			cell.Width = StringWidth(cell.Grapheme)
+		case cell.Rune != 0:
+			cell.Width = runewidth.RuneWidth(cell.Rune)
 		}
-		cell.Width = runewidth.RuneWidth(cell.Rune)
 	}
 	if cell.Width <= 0 {
 		cell = blankCell()
 	}
 	if cell.Width > 2 {
-		cell.Width = 1
+		cell.Width = 2
 	}
-	if cell.Rune == 0 && cell.Width > 0 {
-		cell.Rune = ' '
+	if cell.Grapheme == "" && cell.Width > 0 {
+		if cell.Rune == 0 {
+			cell.Rune = ' '
+		}
+		cell.Grapheme = string(cell.Rune)
+	}
+	if cell.Rune == 0 && cell.Grapheme != "" {
+		cell.Rune = firstRuneInString(cell.Grapheme)
 	}
 	return cell
 }
 
-func renderRune(cell Cell) rune {
-	if cell.Rune == 0 {
-		return ' '
+func renderCellText(cell Cell) string {
+	if cell.Grapheme != "" {
+		return cell.Grapheme
 	}
-	return cell.Rune
+	if cell.Rune == 0 {
+		return " "
+	}
+	return string(cell.Rune)
 }
 
 func cellsEquivalent(a, b Cell) bool {
-	return renderRune(a) == renderRune(b) &&
+	return renderCellText(a) == renderCellText(b) &&
 		a.Width == b.Width &&
 		colorsEqual(a.Fg, b.Fg, cellColorEpsilon) &&
 		colorsEqual(a.Bg, b.Bg, cellColorEpsilon) &&
@@ -345,7 +363,6 @@ func cellsEquivalent(a, b Cell) bool {
 		a.Blink == b.Blink &&
 		a.Hyperlink == b.Hyperlink
 }
-
 func colorsEqual(a, b lipgloss.Color, epsilon int) bool {
 	sa := string(a)
 	sb := string(b)

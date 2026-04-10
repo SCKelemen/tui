@@ -209,6 +209,7 @@ func (lc *LayerCompositor) Composite(width, height int) *CellBuffer {
 
 type alphaCell struct {
 	Rune          rune
+	Grapheme      string
 	Width         int
 	Fg            RGBA
 	Bg            RGBA
@@ -230,6 +231,7 @@ func alphaCellFromCell(cell Cell, opacity float64) alphaCell {
 
 	alphaCell := alphaCell{
 		Rune:          cell.Rune,
+		Grapheme:      cell.Grapheme,
 		Width:         cell.Width,
 		Bold:          cell.Bold,
 		Italic:        cell.Italic,
@@ -239,7 +241,6 @@ func alphaCellFromCell(cell Cell, opacity float64) alphaCell {
 		Blink:         cell.Blink,
 		Hyperlink:     cell.Hyperlink,
 	}
-
 	if fgValue != "" {
 		alphaCell.Fg = FromLipgloss(cell.Fg).WithAlpha(alpha)
 		alphaCell.hasFg = alphaCell.Fg.A > 0
@@ -253,45 +254,59 @@ func alphaCellFromCell(cell Cell, opacity float64) alphaCell {
 }
 
 func blankAlphaCell() alphaCell {
-	return alphaCell{Rune: ' ', Width: 1}
+	return alphaCell{Rune: ' ', Grapheme: " ", Width: 1}
 }
 
 func continuationAlphaCell(base alphaCell) alphaCell {
 	base.Rune = 0
+	base.Grapheme = ""
 	base.Width = 0
 	return base
 }
 
 func normalizeAlphaCell(cell alphaCell) alphaCell {
+	if cell.Grapheme == "" && cell.Rune != 0 {
+		cell.Grapheme = string(cell.Rune)
+	}
 	if cell.Width <= 0 {
-		if cell.Rune == 0 {
-			return blankAlphaCell()
+		switch {
+		case cell.Grapheme != "":
+			cell.Width = StringWidth(cell.Grapheme)
+		case cell.Rune != 0:
+			cell.Width = runewidth.RuneWidth(cell.Rune)
 		}
-		cell.Width = runewidth.RuneWidth(cell.Rune)
 	}
 	if cell.Width <= 0 {
 		cell = blankAlphaCell()
 	}
 	if cell.Width > 2 {
-		cell.Width = 1
+		cell.Width = 2
 	}
-	if cell.Rune == 0 && cell.Width > 0 {
-		cell.Rune = ' '
+	if cell.Grapheme == "" && cell.Width > 0 {
+		if cell.Rune == 0 {
+			cell.Rune = ' '
+		}
+		cell.Grapheme = string(cell.Rune)
+	}
+	if cell.Rune == 0 && cell.Grapheme != "" {
+		cell.Rune = firstRuneInString(cell.Grapheme)
 	}
 	return cell
 }
 
-func renderAlphaRune(cell alphaCell) rune {
-	if cell.Rune == 0 {
-		return ' '
+func renderAlphaText(cell alphaCell) string {
+	if cell.Grapheme != "" {
+		return cell.Grapheme
 	}
-	return cell.Rune
+	if cell.Rune == 0 {
+		return " "
+	}
+	return string(cell.Rune)
 }
 
 func (c alphaCell) hasVisibleGlyph() bool {
-	return c.Width > 0 && renderAlphaRune(c) != ' '
+	return c.Width > 0 && renderAlphaText(c) != " "
 }
-
 func (c alphaCell) hasTextAttributes() bool {
 	return c.Bold || c.Italic || c.Underline || c.Strikethrough || c.Dim || c.Blink || c.Hyperlink != ""
 }
@@ -317,6 +332,7 @@ func (c alphaCell) visibleColor() RGBA {
 func (c alphaCell) toCell() Cell {
 	cell := Cell{
 		Rune:          c.Rune,
+		Grapheme:      c.Grapheme,
 		Width:         c.Width,
 		Bold:          c.Bold,
 		Italic:        c.Italic,
@@ -532,28 +548,39 @@ func renderLayerToBuffer(width, height int, content string, startX, startY int) 
 			continue
 		}
 
-		width := runewidth.RuneWidth(r)
-		if width <= 0 {
-			i += size
-			continue
-		}
-		if width > 2 {
-			width = 1
+		cluster, ok := NewGraphemeIterator(content[i:]).Next()
+		if !ok {
+			break
 		}
 
-		writeLayerCell(buffer, x, y, state, r, width)
-		x += width
-		i += size
+		clusterText := cluster.String()
+		clusterWidth := cluster.Width
+		if clusterWidth <= 0 {
+			i += len(clusterText)
+			continue
+		}
+
+		writeLayerGrapheme(buffer, x, y, state, cluster)
+		x += clusterWidth
+		i += len(clusterText)
 	}
 
 	return buffer
 }
-
 func writeLayerRune(buffer *CellBuffer, x, y int, state ansiRenderState, r rune) {
 	writeLayerCell(buffer, x, y, state, r, 1)
 }
 
+func writeLayerGrapheme(buffer *CellBuffer, x, y int, state ansiRenderState, cluster GraphemeCluster) {
+	clusterText := cluster.String()
+	writeLayerText(buffer, x, y, state, clusterText, cluster.Width)
+}
+
 func writeLayerCell(buffer *CellBuffer, x, y int, state ansiRenderState, r rune, width int) {
+	writeLayerText(buffer, x, y, state, string(r), width)
+}
+
+func writeLayerText(buffer *CellBuffer, x, y int, state ansiRenderState, text string, width int) {
 	if y < 0 || y >= buffer.height || x >= buffer.width {
 		return
 	}
@@ -562,7 +589,8 @@ func writeLayerCell(buffer *CellBuffer, x, y int, state ansiRenderState, r rune,
 	}
 
 	buffer.SetCell(x, y, Cell{
-		Rune:          r,
+		Rune:          firstRuneInString(text),
+		Grapheme:      text,
 		Width:         width,
 		Fg:            state.fg,
 		Bg:            state.bg,
@@ -575,7 +603,6 @@ func writeLayerCell(buffer *CellBuffer, x, y int, state ansiRenderState, r rune,
 		Hyperlink:     state.hyperlink,
 	})
 }
-
 func consumeEscapeSequence(s string, state *ansiRenderState) (int, bool) {
 	if strings.HasPrefix(s, "\x1b[") {
 		end := strings.IndexByte(s, 'm')

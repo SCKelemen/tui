@@ -168,3 +168,43 @@ func TestFrameBufferRenderProducesOutput(t *testing.T) {
 		t.Fatalf("expected frame content, got %q", out)
 	}
 }
+
+func TestFrameBufferDiffHidesCursor(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 10, 6)
+
+	frame1 := "row0\nrow1\nrow2\nrow3\nrow4\nrow5"
+	_ = fb.Render(frame1)
+	buf.Reset()
+
+	// Change only row index 4 (1-based: row 5).
+	frame2 := "row0\nrow1\nrow2\nrow3\nCHANGED\nrow5"
+	out := fb.Render(frame2)
+	if out == "" {
+		t.Fatal("expected diff output for changed frame")
+	}
+	if !strings.HasPrefix(out, "\x1b[?25l") {
+		t.Fatalf("expected diff output to start with hide-cursor, got %q", out)
+	}
+	if !strings.HasSuffix(out, "\x1b[?25h") {
+		t.Fatalf("expected diff output to end with show-cursor, got %q", out)
+	}
+	if !strings.Contains(out, "CHANGED") {
+		t.Fatalf("expected diff output to include the changed row, got %q", out)
+	}
+}
+
+func TestFrameBufferIdleRenderEmitsNoCursorToggles(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 5, 2)
+	_ = fb.Render("aa\nbb")
+	buf.Reset()
+
+	out := fb.Render("aa\nbb")
+	if out != "" {
+		t.Fatalf("expected empty diff output for identical frame, got %q", out)
+	}
+	if strings.Contains(buf.String(), "\x1b[?25l") || strings.Contains(buf.String(), "\x1b[?25h") {
+		t.Fatalf("idle render must not emit cursor hide/show: %q", buf.String())
+	}
+}

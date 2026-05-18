@@ -68,7 +68,7 @@ func (fb *FrameBuffer) Render(frame string) string {
 		return fb.flushLocked()
 	}
 
-	var out strings.Builder
+	var diff strings.Builder
 	changed := false
 
 	for i := 0; i < fb.height; i++ {
@@ -76,12 +76,20 @@ func (fb *FrameBuffer) Render(frame string) string {
 			continue
 		}
 
-		fmt.Fprintf(&out, "\033[%d;1H%s\033[K", i+1, fb.back[i])
+		fmt.Fprintf(&diff, "\033[%d;1H%s\033[K", i+1, fb.back[i])
 		changed = true
 	}
 
 	output := ""
 	if changed {
+		// Wrap the diff write in hide/show cursor so the user does not see
+		// the cursor skitter through partially updated rows. Only emitted
+		// when there is something to write — an idle Render produces no
+		// hide/show pair.
+		var out strings.Builder
+		out.WriteString("\033[?25l")
+		out.WriteString(diff.String())
+		out.WriteString("\033[?25h")
 		output = out.String()
 		_, _ = io.WriteString(fb.writer, output)
 	}

@@ -91,7 +91,7 @@ func DetectMethod() string {
 }
 
 func writeOSC52(content string, target ClipboardTarget) error {
-	sequence := osc52Sequence(content, target)
+	sequence := OSC52Sequence(target, content)
 	_, err := os.Stdout.WriteString(sequence)
 	return err
 }
@@ -170,8 +170,78 @@ func runReadCommand(cmd clipboardCommand) (string, error) {
 	return string(output), nil
 }
 
-// osc52Sequence builds an OSC 52 sequence for the given content and target.
-func osc52Sequence(content string, target ClipboardTarget) string {
-	base64Content := base64.StdEncoding.EncodeToString([]byte(content))
-	return fmt.Sprintf("\033]52;%s;%s\a", target, base64Content)
+// OSC 52 clipboard contract.
+//
+// The OSC 52 escape sequence asks the host terminal to replace the
+// contents of one of its clipboards with the base64-encoded payload
+// supplied in-band. The wire format is fixed by xterm:
+//
+//	ESC ] 5 2 ; <target> ; <base64 payload> BEL
+//
+// where <target> is "c" (system clipboard) or "p" (X11 primary
+// selection) and BEL is the ASCII bell character (0x07). The full
+// reference is documented in the xterm control sequences manual:
+// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Operating-System-Commands
+//
+// OSC52Sequence is a pure builder: it performs no I/O, no environment
+// inspection, and no terminal detection. Callers that want to know
+// whether the host terminal will honour the sequence should consult
+// SupportsOSC52 separately.
+//
+// SupportsOSC52 reports whether a modern terminal is likely to accept
+// the sequence. The check is heuristic and based on environment
+// variables only.
+
+// OSC52Sequence builds an OSC 52 escape sequence for the supplied
+// clipboard target and payload. The function is total: any string
+// (including empty input or arbitrary binary in UTF-8 form) is valid.
+//
+// Example: OSC52Sequence(ClipboardSystem, "hello") returns
+// "\x1b]52;c;aGVsbG8=\x07".
+func OSC52Sequence(target ClipboardTarget, text string) string {
+	base64Content := base64.StdEncoding.EncodeToString([]byte(text))
+	return fmt.Sprintf("\x1b]52;%s;%s\x07", target, base64Content)
+}
+
+// osc52KnownTerminals lists TERM_PROGRAM values that are expected to
+// honour OSC 52 clipboard writes. The list mirrors the modern-terminal
+// allow-list used by tui.DetectCapabilities so the two helpers stay in
+// agreement.
+var osc52KnownTerminals = map[string]struct{}{
+	"iterm.app":      {},
+	"vscode":         {},
+	"apple_terminal": {},
+	"wezterm":        {},
+	"ghostty":        {},
+	"kitty":          {},
+	"alacritty":      {},
+	"tmux":           {},
+}
+
+// SupportsOSC52 reports whether the host terminal is likely to honour
+// OSC 52 clipboard writes. The check is heuristic and based on
+// TERM_PROGRAM, TERM, and KITTY_WINDOW_ID — no terminal queries are
+// issued. A "true" result is best-effort, not a guarantee.
+//
+// Most modern terminal emulators (iTerm2, WezTerm, Ghostty, Kitty,
+// Alacritty, VS Code's integrated terminal, Apple Terminal, tmux) are
+// recognised. Unknown or legacy terminals return false.
+func SupportsOSC52() bool {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("TERM")), "dumb") {
+		return false
+	}
+	if os.Getenv("KITTY_WINDOW_ID") != "" {
+		return true
+	}
+	if term := strings.ToLower(strings.TrimSpace(os.Getenv("TERM"))); term != "" {
+		if term == "xterm-kitty" || strings.Contains(term, "kitty") {
+			return true
+		}
+	}
+	if program := strings.ToLower(strings.TrimSpace(os.Getenv("TERM_PROGRAM"))); program != "" {
+		if _, ok := osc52KnownTerminals[program]; ok {
+			return true
+		}
+	}
+	return false
 }

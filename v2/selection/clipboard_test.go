@@ -14,9 +14,19 @@ func TestOSC52Sequence(t *testing.T) {
 	expectedBase64 := base64.StdEncoding.EncodeToString([]byte(content))
 	expected := fmt.Sprintf(string([]byte{0x1b})+"]52;%s;%s"+string([]byte{0x07}), target, expectedBase64)
 
-	got := osc52Sequence(content, target)
+	got := OSC52Sequence(target, content)
 	if got != expected {
 		t.Fatalf("unexpected OSC 52 sequence\nexpected: %q\ngot:      %q", expected, got)
+	}
+}
+
+func TestOSC52SequenceMatchesHelloFixture(t *testing.T) {
+	// Locked-down assertion to guard against accidental wire-format
+	// changes. The reference bytes come from the xterm OSC 52 spec.
+	got := OSC52Sequence(ClipboardSystem, "hello")
+	want := "\x1b]52;c;aGVsbG8=\x07"
+	if got != want {
+		t.Fatalf("OSC52Sequence(ClipboardSystem, %q) = %q, want %q", "hello", got, want)
 	}
 }
 
@@ -34,7 +44,7 @@ func TestOSC52SequenceBase64EncodingVariants(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := osc52Sequence(tc.content, tc.target)
+			got := OSC52Sequence(tc.target, tc.content)
 			expectedBase64 := base64.StdEncoding.EncodeToString([]byte(tc.content))
 
 			prefix := fmt.Sprintf(string([]byte{0x1b})+"]52;%s;", tc.target)
@@ -59,6 +69,47 @@ func TestWriteClipboardReturnsCmd(t *testing.T) {
 	cmd := WriteClipboard("test")
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
+	}
+}
+
+func TestSupportsOSC52KnownGoodTerm(t *testing.T) {
+	cases := []string{"iTerm.app", "ghostty", "WezTerm", "kitty", "vscode", "Apple_Terminal", "alacritty", "tmux"}
+	for _, term := range cases {
+		t.Run(term, func(t *testing.T) {
+			t.Setenv("TERM_PROGRAM", term)
+			t.Setenv("TERM", "xterm-256color")
+			t.Setenv("KITTY_WINDOW_ID", "")
+			if !SupportsOSC52() {
+				t.Errorf("SupportsOSC52() = false for TERM_PROGRAM=%s, want true", term)
+			}
+		})
+	}
+}
+
+func TestSupportsOSC52UnknownReturnsFalse(t *testing.T) {
+	t.Setenv("TERM_PROGRAM", "")
+	t.Setenv("TERM", "")
+	t.Setenv("KITTY_WINDOW_ID", "")
+	if SupportsOSC52() {
+		t.Error("SupportsOSC52() = true for empty env, want false")
+	}
+}
+
+func TestSupportsOSC52KittyWindowID(t *testing.T) {
+	t.Setenv("TERM_PROGRAM", "")
+	t.Setenv("TERM", "")
+	t.Setenv("KITTY_WINDOW_ID", "42")
+	if !SupportsOSC52() {
+		t.Error("SupportsOSC52() = false with KITTY_WINDOW_ID set, want true")
+	}
+}
+
+func TestSupportsOSC52DumbTermReturnsFalse(t *testing.T) {
+	t.Setenv("TERM_PROGRAM", "ghostty")
+	t.Setenv("TERM", "dumb")
+	t.Setenv("KITTY_WINDOW_ID", "")
+	if SupportsOSC52() {
+		t.Error("SupportsOSC52() = true for TERM=dumb, want false")
 	}
 }
 

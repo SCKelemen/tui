@@ -1,6 +1,7 @@
 package event
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -107,4 +108,75 @@ func TestPublishUnknownTopicNoPanic(t *testing.T) {
 	}()
 
 	Publish(bus, Event[string]{Name: "does-not-exist", Payload: "ignored"})
+}
+
+func TestPublishDoesNotBlockOnSlowSubscriber(t *testing.T) {
+	bus := NewBus()
+
+	// Slow subscriber: never read from this raw channel.
+	slowRaw := make(chan interface{}, 1)
+	bus.subscribers["topic"] = append(bus.subscribers["topic"], slowRaw)
+
+	// Fast typed subscriber via the public API.
+	fast := Subscribe[string](bus, "topic")
+
+	done := make(chan struct{})
+	go func() {
+		// Publish enough events to overflow the slow subscriber's buffer.
+		for i := 0; i < 5; i++ {
+			Publish(bus, Event[string]{Name: "topic", Payload: "hello"})
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Publish blocked on slow subscriber")
+	}
+
+	// Fast subscriber should still receive at least one event.
+	select {
+	case got := <-fast:
+		if got != "hello" {
+			t.Fatalf("expected fast subscriber to receive hello, got %q", got)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("fast subscriber starved by slow subscriber")
+	}
+
+	if bus.DroppedEvents() == 0 {
+		t.Fatal("expected dropped event counter to be incremented")
+	}
+}
+
+func TestPublishOnDropCallback(t *testing.T) {
+	bus := NewBus()
+
+	// Slow subscriber whose buffer fills immediately.
+	slowRaw := make(chan interface{}, 1)
+	bus.subscribers["topic"] = append(bus.subscribers["topic"], slowRaw)
+
+	var mu sync.Mutex
+	var dropped []string
+	bus.SetOnDrop(func(name string) {
+		mu.Lock()
+		dropped = append(dropped, name)
+		mu.Unlock()
+	})
+
+	for i := 0; i < 3; i++ {
+		Publish(bus, Event[int]{Name: "topic", Payload: i})
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(dropped) == 0 {
+		t.Fatal("expected at least one drop callback")
+	}
+	for _, n := range dropped {
+		if n != "topic" {
+			t.Fatalf("unexpected drop name: %q", n)
+		}
+	}
 }

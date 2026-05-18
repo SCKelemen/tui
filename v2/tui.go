@@ -282,6 +282,18 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	case tea.KeyMsg:
+		// Bracketed-paste detection: bubbletea surfaces paste payloads
+		// as a KeyMsg with Key.Paste=true. Convert it to the typed
+		// BracketedPasteMsg and route it through Update so the focused
+		// component sees the paste as a first-class event instead of a
+		// stream of synthetic keypresses. We deliberately do NOT run
+		// the focus-cycle / quit-key shortcuts for paste payloads —
+		// "tab" or the configured quit key showing up in pasted text
+		// must not trigger Application behavior.
+		if paste, ok := keyMsgAsPaste(msg); ok {
+			return a.Update(paste)
+		}
+
 		key := msg.String()
 
 		// Always forward keys to the focused component first.

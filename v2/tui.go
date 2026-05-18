@@ -233,6 +233,14 @@ func (a *Application) Init() tea.Cmd {
 
 // Update handles messages.
 func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	return a.updateImpl(msg)
+}
+
+// updateImpl contains the core message-handling logic for Application.
+// It is split out from Update so that Update can layer additional
+// behavior (for example, the input-handler chain) before delegating to
+// the existing routing logic without rewriting it.
+func (a *Application) updateImpl(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width

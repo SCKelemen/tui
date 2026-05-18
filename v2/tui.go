@@ -28,6 +28,17 @@ type Component interface {
 	Focused() bool
 }
 
+// Bounded is an optional interface a Component can implement to advertise
+// the screen rectangle (in cells, top-left origin) where its current view
+// is rendered. Application uses Bounds to hit-test mouse clicks so that
+// pressing in a component's rect refocuses that component and forwards the
+// event. Components rendered through a container that does its own layout
+// can either implement Bounded themselves or have their bounds registered
+// via Application.SetComponentBounds.
+type Bounded interface {
+	Bounds() (x, y, w, h int)
+}
+
 // KeyConsumer is an optional interface a Component can implement to claim
 // keys that would otherwise be handled by Application-level shortcuts such
 // as Tab, Shift+Tab and the quit key.
@@ -55,12 +66,20 @@ func WithQuitKey(key string) ApplicationOption {
 	}
 }
 
+// componentRect holds an explicit, externally registered bounding box for a
+// component that does not implement the Bounded interface.
+type componentRect struct {
+	x, y, w, h int
+	set        bool
+}
+
 // Application represents the main TUI application.
 type Application struct {
 	width      int
 	height     int
 	components []Component
-	focused    int // Index of currently focused component.
+	bounds     []componentRect // parallel to components; bounds[i].set toggles validity
+	focused    int             // Index of currently focused component.
 	quitKey    string
 	frameBuf   *FrameBuffer
 }
@@ -88,10 +107,54 @@ func (a *Application) SetQuitKey(key string) {
 // AddComponent adds a component to the application.
 func (a *Application) AddComponent(c Component) {
 	a.components = append(a.components, c)
+	a.bounds = append(a.bounds, componentRect{})
 	if a.focused == -1 && len(a.components) > 0 {
 		a.focused = 0
 		a.components[0].Focus()
 	}
+}
+
+// SetComponentBounds registers the screen rectangle for the component at
+// index i. Bounds are used for mouse hit-testing — a press inside the rect
+// refocuses that component and routes the event to it. Pass a non-positive
+// width or height to clear previously registered bounds.
+//
+// Components that implement the Bounded interface do not need to call
+// SetComponentBounds; bounds reported by Bounded.Bounds take precedence
+// over the registered rectangle when both are present.
+func (a *Application) SetComponentBounds(i, x, y, w, h int) {
+	if i < 0 || i >= len(a.bounds) {
+		return
+	}
+	if w <= 0 || h <= 0 {
+		a.bounds[i] = componentRect{}
+		return
+	}
+	a.bounds[i] = componentRect{x: x, y: y, w: w, h: h, set: true}
+}
+
+// componentBoundsAt returns the registered or component-reported bounds for
+// the component at index i, plus whether bounds were available.
+func (a *Application) componentBoundsAt(i int) (x, y, w, h int, ok bool) {
+	if i < 0 || i >= len(a.components) {
+		return 0, 0, 0, 0, false
+	}
+	if b, has := a.components[i].(Bounded); has {
+		bx, by, bw, bh := b.Bounds()
+		if bw > 0 && bh > 0 {
+			return bx, by, bw, bh, true
+		}
+	}
+	if r := a.bounds[i]; r.set {
+		return r.x, r.y, r.w, r.h, true
+	}
+	return 0, 0, 0, 0, false
+}
+
+// pointInBounds reports whether (x, y) is within the rectangle described by
+// (bx, by, bw, bh) using inclusive top-left, exclusive bottom-right.
+func pointInBounds(x, y, bx, by, bw, bh int) bool {
+	return x >= bx && y >= by && x < bx+bw && y < by+bh
 }
 
 // FocusComponent focuses a specific component by index, blurring the currently focused one.
@@ -135,6 +198,28 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 	case tea.MouseMsg:
+		// Hit-test presses so a click in another component's rect refocuses
+		// that component and routes the message to it. Motion and release
+		// stay with the currently focused component — drag tracking is a
+		// larger feature.
+		if msg.Action == tea.MouseActionPress {
+			for i := range a.components {
+				bx, by, bw, bh, ok := a.componentBoundsAt(i)
+				if !ok {
+					continue
+				}
+				if !pointInBounds(msg.X, msg.Y, bx, by, bw, bh) {
+					continue
+				}
+				if i != a.focused {
+					a.FocusComponent(i)
+				}
+				var cmd tea.Cmd
+				a.components[i], cmd = a.components[i].Update(msg)
+				return a, cmd
+			}
+		}
+
 		if a.focused >= 0 && a.focused < len(a.components) {
 			var cmd tea.Cmd
 			a.components[a.focused], cmd = a.components[a.focused].Update(msg)

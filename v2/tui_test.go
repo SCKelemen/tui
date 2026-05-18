@@ -284,6 +284,166 @@ func TestQuitKeyFiresWhenNoComponentFocused(t *testing.T) {
 	}
 }
 
+// mouseAwareComponent records every MouseMsg it sees so tests can assert
+// that the Application routed the click correctly.
+type mouseAwareComponent struct {
+	mockComponent
+	mouseEvents []tea.MouseMsg
+}
+
+func (m *mouseAwareComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
+	if mm, ok := msg.(tea.MouseMsg); ok {
+		m.mouseEvents = append(m.mouseEvents, mm)
+	}
+	_, cmd := m.mockComponent.Update(msg)
+	return m, cmd
+}
+
+// boundedComponent embeds mouseAwareComponent and implements Bounded.
+type boundedComponent struct {
+	mouseAwareComponent
+	bx, by, bw, bh int
+}
+
+func (b *boundedComponent) Bounds() (int, int, int, int) {
+	return b.bx, b.by, b.bw, b.bh
+}
+
+func (b *boundedComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
+	if mm, ok := msg.(tea.MouseMsg); ok {
+		b.mouseEvents = append(b.mouseEvents, mm)
+	}
+	_, cmd := b.mockComponent.Update(msg)
+	return b, cmd
+}
+
+func TestMouseHitTestRefocusesAndRoutesClick(t *testing.T) {
+	app := NewApplication()
+	left := &boundedComponent{bx: 0, by: 0, bw: 20, bh: 10}
+	right := &boundedComponent{bx: 20, by: 0, bw: 20, bh: 10}
+
+	app.AddComponent(left)
+	app.AddComponent(right)
+
+	if !left.Focused() {
+		t.Fatal("expected left to be focused initially")
+	}
+
+	// Click in the right component's rect.
+	_, _ = app.Update(tea.MouseMsg{
+		X:      25,
+		Y:      4,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+
+	if !right.Focused() {
+		t.Fatal("expected right to be focused after click in its rect")
+	}
+	if left.Focused() {
+		t.Fatal("expected left to be blurred after focus moved")
+	}
+	if len(right.mouseEvents) != 1 {
+		t.Fatalf("expected right to receive 1 mouse event, got %d", len(right.mouseEvents))
+	}
+	if len(left.mouseEvents) != 0 {
+		t.Fatalf("expected left to receive 0 mouse events, got %d", len(left.mouseEvents))
+	}
+
+	// Click back into the left component's rect.
+	_, _ = app.Update(tea.MouseMsg{
+		X:      5,
+		Y:      2,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+
+	if !left.Focused() {
+		t.Fatal("expected left to be focused after click in its rect")
+	}
+	if right.Focused() {
+		t.Fatal("expected right to be blurred after focus moved back")
+	}
+	if len(left.mouseEvents) != 1 {
+		t.Fatalf("expected left to receive 1 mouse event, got %d", len(left.mouseEvents))
+	}
+}
+
+func TestSetComponentBoundsHitTest(t *testing.T) {
+	app := NewApplication()
+	a := &mouseAwareComponent{}
+	b := &mouseAwareComponent{}
+	app.AddComponent(a)
+	app.AddComponent(b)
+
+	// No Bounded interface — use SetComponentBounds explicitly.
+	app.SetComponentBounds(0, 0, 0, 10, 5)
+	app.SetComponentBounds(1, 10, 0, 10, 5)
+
+	_, _ = app.Update(tea.MouseMsg{
+		X:      12,
+		Y:      2,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+
+	if !b.Focused() {
+		t.Fatal("expected b to be focused after click in its registered rect")
+	}
+	if len(b.mouseEvents) != 1 {
+		t.Fatalf("expected b to receive 1 mouse event, got %d", len(b.mouseEvents))
+	}
+}
+
+func TestMouseClickOutsideAllBoundsStaysWithFocused(t *testing.T) {
+	app := NewApplication()
+	left := &boundedComponent{bx: 0, by: 0, bw: 10, bh: 5}
+	right := &boundedComponent{bx: 20, by: 0, bw: 10, bh: 5}
+	app.AddComponent(left)
+	app.AddComponent(right)
+
+	// Click in a gap between components — should not change focus.
+	_, _ = app.Update(tea.MouseMsg{
+		X:      15,
+		Y:      2,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+
+	if !left.Focused() {
+		t.Fatal("expected left to remain focused after click in gap")
+	}
+	if len(left.mouseEvents) != 1 {
+		t.Fatalf("expected left (focused) to receive the gap click, got %d", len(left.mouseEvents))
+	}
+}
+
+func TestMouseMotionStaysWithFocused(t *testing.T) {
+	app := NewApplication()
+	left := &boundedComponent{bx: 0, by: 0, bw: 10, bh: 5}
+	right := &boundedComponent{bx: 20, by: 0, bw: 10, bh: 5}
+	app.AddComponent(left)
+	app.AddComponent(right)
+
+	// Motion event over right's rect must NOT refocus.
+	_, _ = app.Update(tea.MouseMsg{
+		X:      25,
+		Y:      2,
+		Action: tea.MouseActionMotion,
+		Button: tea.MouseButtonLeft,
+	})
+
+	if !left.Focused() {
+		t.Fatal("expected left to remain focused; motion must not refocus")
+	}
+	if len(left.mouseEvents) != 1 {
+		t.Fatalf("expected left (focused) to receive motion, got %d", len(left.mouseEvents))
+	}
+	if len(right.mouseEvents) != 0 {
+		t.Fatalf("expected right to receive no motion events, got %d", len(right.mouseEvents))
+	}
+}
+
 func TestExistingFocusCyclingPreservedForNonClaimingComponents(t *testing.T) {
 	app := NewApplication()
 	c1 := &mockComponent{}

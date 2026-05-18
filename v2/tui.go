@@ -28,6 +28,23 @@ type Component interface {
 	Focused() bool
 }
 
+// KeyConsumer is an optional interface a Component can implement to claim
+// keys that would otherwise be handled by Application-level shortcuts such
+// as Tab, Shift+Tab and the quit key.
+//
+// When the focused component reports HandlesKey(k) == true for a given
+// key string (as produced by tea.KeyMsg.String), Application will deliver
+// the key to the component and skip its own shortcut routing for that
+// key. This lets, for example, a focused text input bind Tab without
+// having the Application steal it for focus cycling.
+//
+// Components that do not implement KeyConsumer keep the legacy behavior:
+// keys are forwarded to the focused component, and Application shortcuts
+// still fire as usual.
+type KeyConsumer interface {
+	HandlesKey(key string) bool
+}
+
 // ApplicationOption configures a new Application.
 type ApplicationOption func(*Application)
 
@@ -125,23 +142,39 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	case tea.KeyMsg:
+		key := msg.String()
+
 		// Always forward keys to the focused component first.
+		var focusedCmd tea.Cmd
+		claimed := false
 		if a.focused >= 0 && a.focused < len(a.components) {
-			var cmd tea.Cmd
-			a.components[a.focused], cmd = a.components[a.focused].Update(msg)
-			if cmd != nil {
-				return a, cmd
+			focused := a.components[a.focused]
+			a.components[a.focused], focusedCmd = focused.Update(msg)
+			if kc, ok := focused.(KeyConsumer); ok && kc.HandlesKey(key) {
+				claimed = true
 			}
 		}
 
-		switch msg.String() {
+		// If the focused component explicitly claimed the key, do not let
+		// Application-level shortcuts intercept it.
+		if claimed {
+			return a, focusedCmd
+		}
+
+		// Preserve legacy behavior: a non-nil command from the focused
+		// component short-circuits Application shortcuts as well.
+		if focusedCmd != nil {
+			return a, focusedCmd
+		}
+
+		switch key {
 		case "tab":
 			return a, a.focusNext()
 		case "shift+tab":
 			return a, a.focusPrev()
 		}
 
-		if a.quitKey != "" && msg.String() == a.quitKey {
+		if a.quitKey != "" && key == a.quitKey {
 			return a, tea.Quit
 		}
 

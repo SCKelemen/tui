@@ -209,3 +209,100 @@ func TestView(t *testing.T) {
 		t.Fatalf("expected concatenated view %q, got %q", "onetwo", got)
 	}
 }
+
+// keyClaimingComponent is a mockComponent that implements KeyConsumer.
+type keyClaimingComponent struct {
+	mockComponent
+	claim    map[string]bool
+	lastKeys []string
+}
+
+func (k *keyClaimingComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
+	if km, ok := msg.(tea.KeyMsg); ok {
+		k.lastKeys = append(k.lastKeys, km.String())
+	}
+	_, cmd := k.mockComponent.Update(msg)
+	return k, cmd
+}
+
+func (k *keyClaimingComponent) HandlesKey(key string) bool {
+	return k.claim[key]
+}
+
+func TestKeyConsumerClaimsTab(t *testing.T) {
+	app := NewApplication()
+	other := &mockComponent{}
+	claimer := &keyClaimingComponent{claim: map[string]bool{"tab": true}}
+
+	app.AddComponent(claimer)
+	app.AddComponent(other)
+
+	// claimer is focused (index 0).
+	if !claimer.Focused() {
+		t.Fatal("expected claimer to be focused initially")
+	}
+
+	_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("expected no command when key is claimed, got %v", cmd)
+	}
+
+	// Focus must NOT have cycled.
+	if !claimer.Focused() {
+		t.Fatal("claimer should still be focused — Tab was claimed")
+	}
+	if other.Focused() {
+		t.Fatal("other should not be focused after claimed Tab")
+	}
+
+	// Claimer should have received the Tab key.
+	if len(claimer.lastKeys) == 0 || claimer.lastKeys[len(claimer.lastKeys)-1] != "tab" {
+		t.Fatalf("expected claimer to receive tab key, got %v", claimer.lastKeys)
+	}
+}
+
+func TestKeyConsumerDoesNotInterceptUnclaimedKeys(t *testing.T) {
+	app := NewApplication()
+	claimer := &keyClaimingComponent{claim: map[string]bool{"enter": true}}
+	other := &mockComponent{}
+	app.AddComponent(claimer)
+	app.AddComponent(other)
+
+	// claimer claims "enter" but not "tab" — Tab should still cycle focus.
+	_, _ = app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if !other.Focused() {
+		t.Fatal("expected Tab to cycle to second component when not claimed")
+	}
+}
+
+func TestQuitKeyFiresWhenNoComponentFocused(t *testing.T) {
+	app := NewApplication()
+	// No components added — focused remains -1.
+	_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Fatal("expected quit command when no component is focused")
+	}
+}
+
+func TestExistingFocusCyclingPreservedForNonClaimingComponents(t *testing.T) {
+	app := NewApplication()
+	c1 := &mockComponent{}
+	c2 := &mockComponent{}
+	c3 := &mockComponent{}
+	app.AddComponent(c1)
+	app.AddComponent(c2)
+	app.AddComponent(c3)
+
+	app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if !c2.Focused() {
+		t.Fatal("expected c2 focused after first Tab")
+	}
+	app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if !c3.Focused() {
+		t.Fatal("expected c3 focused after second Tab")
+	}
+	app.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	if !c2.Focused() {
+		t.Fatal("expected c2 focused after Shift+Tab")
+	}
+}

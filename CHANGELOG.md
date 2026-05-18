@@ -1,5 +1,64 @@
 # Changelog
 
+## [tui/v2.20.0] - 2026-05-18
+
+First release on the `tui/v2.x` line since `tui/v2.19.0`. Consolidates three waves of correctness fixes and OpenTUI-inspired feature work, plus dependency bumps. 48 commits, 83 changed files, +18,569 lines.
+
+### Added
+
+**Correctness foundation**
+- `event.SubscribeWithHandle[T]` — returns a `*Subscription[T]` with a `Close()` method for explicit unsubscription. Prefer this in new code to avoid goroutine leaks from forgotten subscribers.
+- `event.Publish` is non-blocking with bounded backpressure: events are dropped rather than blocking publishers when subscribers are slow. Track drops via `Bus.DroppedEvents()`.
+- `KeyConsumer` interface — focused components can decline keys (e.g. `Tab`) so global shortcuts still work.
+- `Bounded` interface — components expose their rendered geometry for hit-testing.
+- `MouseMsg` routing now hit-tests against rendered components and re-focuses on click.
+- Framebuffer line truncation and padding are display-width aware (east-asian width counted), not byte-length aware. Fixes width drift with CJK/wide characters.
+- Cursor is hidden during framebuffer diff writes to prevent flicker.
+- Baseline test coverage for the framebuffer (resize, clear, cursor ops) and selection manager.
+
+**OpenTUI parity — system integration**
+- `input.Slider` component.
+- `FocusedMsg` / `BlurredMsg` — XTerm focus event tracking.
+- `BracketedPasteMsg` — typed paste detection with content payload.
+- `display.LineNumbers` gutter component.
+- `CapabilityMsg` and `TerminalCapability` detection (truecolor, hyperlinks, etc.).
+- `ThemeModeMsg` and light/dark theme-mode auto-detection.
+- `selection.OSC52Sequence` and `selection.SupportsOSC52` — public OSC 52 clipboard helpers.
+
+**OpenTUI parity — components**
+- `markdown` package — glamour-backed terminal markdown renderer with theme-token bridging.
+- `syntax` package — chroma-backed terminal syntax highlighter; optional truecolor output via `NewWithFormatter`.
+- `animation` package — easings, tweens, timelines, and a `Tick` command.
+- `headless` package — in-memory renderer for component testing without a real terminal.
+- `Application.Use(InputHandler)` — composable input-handler chain for cross-cutting key/message processing.
+
+**Other unreleased work consolidated in this tag**
+- Codex-inspired components: markdown stream, commit-tick, history cell, exec cell, approval overlay, frame rate limiter, job control, network status.
+- Claude-code-inspired components (two batches): VirtualMessageList, ToolUseBlock, ToolResultDisplay, GlimmerMessage, StatusLine, NoSelect, MessageBubble, TeammateSpinnerTree, BashPermissionView, FilePermissionView, BackgroundTaskPanel, MCPServerList, MCPToolDetail, ElicitationForm, AgentWizard, ModelPicker, ThemePicker, FuzzyPicker, RawAnsi.
+- UI gap components: Divider, KeyboardShortcutHint, ListItem, LoadingState, StatusIcon, ThemedText, ThemedBox, Pane, OrderedList, ColorPicker, TreeSelect, DiffFileList, DiffDetailView, TokenWarning, MemoryUsageIndicator, ContextVisualization, ToolUseLoader.
+- `FrameBuffer` renderer, virtualized `RecyclerView` / `VirtualList`.
+- Diagram component with comprehensive README.
+- Focus management, rope data structure, grapheme-aware text, scrollbar, text table.
+- OpenTUI-inspired rendering optimizations: cell buffer, render pool, dirty tracking, alpha blending, hit grid.
+
+### Changed
+
+- **Source compatibility restored**: `event.Subscribe[T]` retains its `<-chan T` return type from `tui/v2.12.0..tui/v2.19.0`. The handle-returning variant introduced earlier in this branch is preserved as the new `event.SubscribeWithHandle[T]`. Callers of the legacy signature need no changes; callers wanting `Close()` should migrate to `SubscribeWithHandle`.
+
+### Dependencies
+
+- `github.com/SCKelemen/design-system` v1.0.2 → v1.3.0.
+- `github.com/junegunn/fzf` v0.70.0 → v0.72.0.
+- `github.com/SCKelemen/layout` v1.1.3 → v1.1.4 (a follow-up will bump to v1.2.0).
+- `github.com/charmbracelet/bubbles` v0.21.0 → v1.0.0.
+- **New**: `github.com/charmbracelet/glamour` (markdown).
+- **New**: `github.com/alecthomas/chroma/v2` (syntax highlighting).
+
+### CI
+- `actions/checkout` v4 → v6.
+- `actions/setup-go` v5 → v6.
+- `softprops/action-gh-release` v2 → v3.
+
 ## [v2.2.0] - 2025-03-27
 ### Added
 - Comprehensive test suite: 30 test files across all 10 packages

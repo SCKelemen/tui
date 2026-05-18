@@ -86,10 +86,12 @@ func (bus *Bus) SetOnDrop(cb func(name string)) {
 	bus.dropMu.Unlock()
 }
 
-// Subscription is a handle to an active typed subscription on a Bus. It owns
-// both the raw fan-out channel registered on the bus and the goroutine that
-// adapts payloads to the requested type. Callers must invoke Close when they
-// are done to release these resources.
+// Subscription is a closeable handle for an event subscription. Use
+// SubscribeWithHandle to obtain one. Call Close to unsubscribe and free the
+// underlying goroutine; Chan exposes the typed receive channel.
+//
+// A Subscription owns both the raw fan-out channel registered on the bus and
+// the goroutine that adapts payloads to the requested type.
 type Subscription[T any] struct {
 	bus     *Bus
 	name    string
@@ -99,29 +101,35 @@ type Subscription[T any] struct {
 	closeOnce sync.Once
 }
 
-// C returns the typed receive channel for this subscription. The channel is
-// closed after Close has been called and the adapter goroutine has drained
-// any pending payloads.
-func (s *Subscription[T]) C() <-chan T {
+// Chan returns the typed receive channel for this subscription. The channel
+// is closed after Close has been called and the adapter goroutine has
+// drained any pending payloads.
+func (s *Subscription[T]) Chan() <-chan T {
 	return s.typedCh
 }
 
 // Close removes this subscription from the bus and lets its adapter
 // goroutine terminate. Close is idempotent and safe to call concurrently.
-// It always returns nil; the signature returns error to leave room for
-// future failure modes (e.g. a closed bus).
-func (s *Subscription[T]) Close() error {
+func (s *Subscription[T]) Close() {
 	s.closeOnce.Do(func() {
 		Unsubscribe(s.bus, s.name, (<-chan interface{})(s.rawCh))
 	})
-	return nil
 }
 
-// Subscribe registers a typed subscriber for an event name and returns a
-// Subscription handle. Callers must invoke Subscription.Close to release the
-// underlying channel and stop the adapter goroutine. Use Subscription.C to
-// access the typed receive channel.
-func Subscribe[T any](bus *Bus, name string) *Subscription[T] {
+// Subscribe registers a typed subscriber for the named event and returns
+// the receive channel. The subscription lives until the bus is closed.
+//
+// Source-compatible with tui/v2.12.0..tui/v2.19.0. Prefer
+// SubscribeWithHandle in new code so callers can Close() the subscription
+// explicitly and avoid goroutine leaks.
+func Subscribe[T any](bus *Bus, name string) <-chan T {
+	return SubscribeWithHandle[T](bus, name).Chan()
+}
+
+// SubscribeWithHandle registers a typed subscriber and returns a
+// Subscription handle. Call Close on the handle to unsubscribe and release
+// the adapter goroutine. Use Chan to access the typed receive channel.
+func SubscribeWithHandle[T any](bus *Bus, name string) *Subscription[T] {
 	rawCh := make(chan interface{}, 1)
 	typedCh := make(chan T, 1)
 
@@ -151,8 +159,8 @@ func Subscribe[T any](bus *Bus, name string) *Subscription[T] {
 // Unsubscribe removes and closes a subscriber channel for an event name.
 //
 // Prefer Subscription.Close over this lower-level helper for typed
-// subscribers created via Subscribe; Close cleanly tears down both the raw
-// channel and the adapter goroutine.
+// subscribers created via SubscribeWithHandle; Close cleanly tears down
+// both the raw channel and the adapter goroutine.
 func Unsubscribe(bus *Bus, name string, ch <-chan interface{}) {
 	bus.mu.Lock()
 	defer bus.mu.Unlock()

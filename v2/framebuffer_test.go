@@ -208,3 +208,130 @@ func TestFrameBufferIdleRenderEmitsNoCursorToggles(t *testing.T) {
 		t.Fatalf("idle render must not emit cursor hide/show: %q", buf.String())
 	}
 }
+
+func TestFrameBufferResizeShrinkHeight(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 10, 5)
+	_ = fb.Render("r0\nr1\nr2\nr3\nr4")
+
+	fb.Resize(10, 2)
+	if fb.height != 2 {
+		t.Fatalf("expected height=2 after shrink, got %d", fb.height)
+	}
+	if len(fb.back) != 2 {
+		t.Fatalf("expected back buffer length 2, got %d", len(fb.back))
+	}
+	if !fb.dirty {
+		t.Fatal("expected dirty=true after resize")
+	}
+	if fb.front != nil {
+		t.Fatal("expected front buffer to be cleared after resize")
+	}
+
+	// After resize, next render should emit a full flush.
+	buf.Reset()
+	out := fb.Render("aa\nbb")
+	if out == "" {
+		t.Fatal("expected non-empty render after resize")
+	}
+	if !strings.Contains(out, "aa") || !strings.Contains(out, "bb") {
+		t.Fatalf("expected resized frame content, got %q", out)
+	}
+}
+
+func TestFrameBufferResizeGrowHeight(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 10, 2)
+	_ = fb.Render("r0\nr1")
+
+	fb.Resize(10, 5)
+	if fb.height != 5 {
+		t.Fatalf("expected height=5 after grow, got %d", fb.height)
+	}
+	if len(fb.back) != 5 {
+		t.Fatalf("expected back buffer length 5, got %d", len(fb.back))
+	}
+	if fb.front != nil {
+		t.Fatal("expected front buffer to be cleared after resize")
+	}
+
+	buf.Reset()
+	out := fb.Render("a\nb\nc\nd\ne")
+	if out == "" {
+		t.Fatal("expected non-empty render after grow")
+	}
+	for _, want := range []string{"a", "b", "c", "d", "e"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected grown frame to contain %q, got %q", want, out)
+		}
+	}
+}
+
+func TestFrameBufferClearEmitsClearEscape(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 10, 3)
+	_ = fb.Render("aaa\nbbb\nccc")
+
+	buf.Reset()
+	fb.Clear()
+
+	written := buf.String()
+	if !strings.Contains(written, "\x1b[2J") {
+		t.Fatalf("expected Clear to emit ESC[2J (erase display), got %q", written)
+	}
+	if !strings.Contains(written, "\x1b[H") {
+		t.Fatalf("expected Clear to emit ESC[H (cursor home), got %q", written)
+	}
+	if fb.front != nil {
+		t.Fatal("expected front buffer to be cleared")
+	}
+	if !fb.dirty {
+		t.Fatal("expected dirty=true after Clear")
+	}
+}
+
+func TestFrameBufferCursorToClampsToOne(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 10, 3)
+
+	buf.Reset()
+	fb.CursorTo(-5, -10)
+	if got := buf.String(); !strings.Contains(got, "\x1b[1;1H") {
+		t.Fatalf("expected CursorTo(-5,-10) to clamp to ESC[1;1H, got %q", got)
+	}
+	if fb.cursorRow != 1 || fb.cursorCol != 1 {
+		t.Fatalf("expected cursor (1,1) after clamping, got (%d,%d)", fb.cursorRow, fb.cursorCol)
+	}
+
+	buf.Reset()
+	fb.CursorTo(0, 0)
+	if got := buf.String(); !strings.Contains(got, "\x1b[1;1H") {
+		t.Fatalf("expected CursorTo(0,0) to clamp to ESC[1;1H, got %q", got)
+	}
+
+	buf.Reset()
+	fb.CursorTo(3, 7)
+	if got := buf.String(); !strings.Contains(got, "\x1b[3;7H") {
+		t.Fatalf("expected CursorTo(3,7) to emit ESC[3;7H, got %q", got)
+	}
+	if fb.cursorRow != 3 || fb.cursorCol != 7 {
+		t.Fatalf("expected cursor (3,7), got (%d,%d)", fb.cursorRow, fb.cursorCol)
+	}
+}
+
+func TestFrameBufferHideShowCursorEscapes(t *testing.T) {
+	var buf bytes.Buffer
+	fb := NewFrameBuffer(&buf, 10, 3)
+
+	buf.Reset()
+	fb.HideCursor()
+	if got := buf.String(); got != "\x1b[?25l" {
+		t.Fatalf("expected HideCursor to emit ESC[?25l, got %q", got)
+	}
+
+	buf.Reset()
+	fb.ShowCursor()
+	if got := buf.String(); got != "\x1b[?25h" {
+		t.Fatalf("expected ShowCursor to emit ESC[?25h, got %q", got)
+	}
+}

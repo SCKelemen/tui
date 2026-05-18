@@ -101,6 +101,11 @@ type Application struct {
 	focused    int             // Index of currently focused component.
 	quitKey    string
 	frameBuf   *FrameBuffer
+
+	// handlers is the ordered chain of input handlers registered via
+	// Application.Use. Entries are removed in O(n) when the
+	// corresponding deregister closure is invoked.
+	handlers []registeredHandler
 }
 
 // NewApplication creates a new TUI application.
@@ -231,8 +236,29 @@ func (a *Application) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update handles messages.
+// Update handles messages. Registered InputHandlers (see Application.Use)
+// run in registration order before component routing. If any handler
+// reports handled=true, Update short-circuits and returns the batched
+// commands from the chain without invoking the component routing logic.
+// Otherwise, any commands the chain produced are batched with the result
+// of the standard routing.
 func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	chainCmds, consumed := a.runInputChain(msg)
+	if consumed {
+		return a, tea.Batch(chainCmds...)
+	}
+	m, cmd := a.updateImpl(msg)
+	if len(chainCmds) > 0 {
+		return m, tea.Batch(append(chainCmds, cmd)...)
+	}
+	return m, cmd
+}
+
+// updateImpl contains the core message-handling logic for Application.
+// It is split out from Update so that Update can layer additional
+// behavior (for example, the input-handler chain) before delegating to
+// the existing routing logic without rewriting it.
+func (a *Application) updateImpl(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width

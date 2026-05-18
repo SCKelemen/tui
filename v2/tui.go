@@ -39,6 +39,25 @@ type Bounded interface {
 	Bounds() (x, y, w, h int)
 }
 
+// FocusedMsg is dispatched whenever a component gains focus. Components
+// that want to react to focus changes — for example to start a cursor
+// blink or refresh internal state — can match on this message in their
+// own Update method. The legacy Component.Focus hook continues to fire
+// alongside this message.
+type FocusedMsg struct {
+	// Index is the position of the now-focused component in the
+	// Application's component list.
+	Index int
+}
+
+// BlurredMsg is dispatched whenever a component loses focus. The legacy
+// Component.Blur hook continues to fire alongside this message.
+type BlurredMsg struct {
+	// Index is the position of the previously focused component in the
+	// Application's component list.
+	Index int
+}
+
 // KeyConsumer is an optional interface a Component can implement to claim
 // keys that would otherwise be handled by Application-level shortcuts such
 // as Tab, Shift+Tab and the quit key.
@@ -157,18 +176,50 @@ func pointInBounds(x, y, bx, by, bw, bh int) bool {
 	return x >= bx && y >= by && x < bx+bw && y < by+bh
 }
 
-// FocusComponent focuses a specific component by index, blurring the currently focused one.
-func (a *Application) FocusComponent(index int) {
+// FocusComponent focuses a specific component by index, blurring the
+// currently focused one. The returned tea.Cmd dispatches BlurredMsg for
+// the previously focused index (when valid) followed by FocusedMsg for
+// the newly focused index, so components that watch for those messages
+// can react. Calling FocusComponent with an out-of-range index, or with
+// the index of the already-focused component, is a no-op and returns
+// nil.
+func (a *Application) FocusComponent(index int) tea.Cmd {
 	if index < 0 || index >= len(a.components) {
-		return
+		return nil
+	}
+	if index == a.focused {
+		return nil
 	}
 
-	if a.focused >= 0 && a.focused < len(a.components) {
-		a.components[a.focused].Blur()
+	prev := a.focused
+	if prev >= 0 && prev < len(a.components) {
+		a.components[prev].Blur()
 	}
 
 	a.focused = index
 	a.components[index].Focus()
+
+	return focusChangeCmd(prev, index)
+}
+
+// focusChangeCmd builds a tea.Cmd that dispatches a BlurredMsg for the
+// previous focused index (when valid) followed by a FocusedMsg for the
+// new focused index. Either or both may be nil; tea.Batch tolerates nil
+// entries.
+func focusChangeCmd(prev, next int) tea.Cmd {
+	var cmds []tea.Cmd
+	if prev >= 0 {
+		blurred := BlurredMsg{Index: prev}
+		cmds = append(cmds, func() tea.Msg { return blurred })
+	}
+	if next >= 0 {
+		focused := FocusedMsg{Index: next}
+		cmds = append(cmds, func() tea.Msg { return focused })
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
 }
 
 // Init initializes the application.
@@ -211,11 +262,15 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if !pointInBounds(msg.X, msg.Y, bx, by, bw, bh) {
 					continue
 				}
+				var focusCmd tea.Cmd
 				if i != a.focused {
-					a.FocusComponent(i)
+					focusCmd = a.FocusComponent(i)
 				}
 				var cmd tea.Cmd
 				a.components[i], cmd = a.components[i].Update(msg)
+				if focusCmd != nil {
+					return a, tea.Batch(focusCmd, cmd)
+				}
 				return a, cmd
 			}
 		}
@@ -297,14 +352,18 @@ func (a *Application) focusNext() tea.Cmd {
 		return nil
 	}
 
-	if a.focused >= 0 {
-		a.components[a.focused].Blur()
+	prev := a.focused
+	if prev >= 0 {
+		a.components[prev].Blur()
 	}
 
 	a.focused = (a.focused + 1) % len(a.components)
 	a.components[a.focused].Focus()
 
-	return nil
+	if prev == a.focused {
+		return nil
+	}
+	return focusChangeCmd(prev, a.focused)
 }
 
 func (a *Application) focusPrev() tea.Cmd {
@@ -312,8 +371,9 @@ func (a *Application) focusPrev() tea.Cmd {
 		return nil
 	}
 
-	if a.focused >= 0 {
-		a.components[a.focused].Blur()
+	prev := a.focused
+	if prev >= 0 {
+		a.components[prev].Blur()
 	}
 
 	a.focused--
@@ -322,5 +382,8 @@ func (a *Application) focusPrev() tea.Cmd {
 	}
 	a.components[a.focused].Focus()
 
-	return nil
+	if prev == a.focused {
+		return nil
+	}
+	return focusChangeCmd(prev, a.focused)
 }

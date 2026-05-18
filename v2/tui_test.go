@@ -466,3 +466,117 @@ func TestExistingFocusCyclingPreservedForNonClaimingComponents(t *testing.T) {
 		t.Fatal("expected c2 focused after Shift+Tab")
 	}
 }
+// drainCmd executes a tea.Cmd, flattening tea.BatchMsg recursively, and
+// returns the slice of leaf messages produced. nil commands and nil
+// messages are skipped.
+func drainCmd(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	var out []tea.Msg
+	msg := cmd()
+	switch v := msg.(type) {
+	case nil:
+		return nil
+	case tea.BatchMsg:
+		for _, c := range v {
+			out = append(out, drainCmd(c)...)
+		}
+	default:
+		out = append(out, msg)
+	}
+	return out
+}
+
+func TestTabEmitsBlurredThenFocusedMsg(t *testing.T) {
+	app := NewApplication()
+	c1 := &mockComponent{}
+	c2 := &mockComponent{}
+	app.AddComponent(c1)
+	app.AddComponent(c2)
+
+	_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	msgs := drainCmd(cmd)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 focus messages from Tab, got %d: %+v", len(msgs), msgs)
+	}
+	b, ok := msgs[0].(BlurredMsg)
+	if !ok || b.Index != 0 {
+		t.Fatalf("expected BlurredMsg{Index:0}, got %T %+v", msgs[0], msgs[0])
+	}
+	f, ok := msgs[1].(FocusedMsg)
+	if !ok || f.Index != 1 {
+		t.Fatalf("expected FocusedMsg{Index:1}, got %T %+v", msgs[1], msgs[1])
+	}
+}
+
+func TestShiftTabEmitsBlurredThenFocusedMsg(t *testing.T) {
+	app := NewApplication()
+	c1 := &mockComponent{}
+	c2 := &mockComponent{}
+	c3 := &mockComponent{}
+	app.AddComponent(c1)
+	app.AddComponent(c2)
+	app.AddComponent(c3)
+
+	_, cmd := app.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	msgs := drainCmd(cmd)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 focus messages from Shift+Tab, got %d", len(msgs))
+	}
+	b, ok := msgs[0].(BlurredMsg)
+	if !ok || b.Index != 0 {
+		t.Fatalf("expected BlurredMsg{Index:0}, got %T %+v", msgs[0], msgs[0])
+	}
+	f, ok := msgs[1].(FocusedMsg)
+	if !ok || f.Index != 2 {
+		t.Fatalf("expected FocusedMsg{Index:2}, got %T %+v", msgs[1], msgs[1])
+	}
+}
+
+func TestFocusComponentEmitsFocusMessages(t *testing.T) {
+	app := NewApplication()
+	c1 := &mockComponent{}
+	c2 := &mockComponent{}
+	c3 := &mockComponent{}
+	app.AddComponent(c1)
+	app.AddComponent(c2)
+	app.AddComponent(c3)
+
+	cmd := app.FocusComponent(2)
+	msgs := drainCmd(cmd)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages from FocusComponent, got %d", len(msgs))
+	}
+	if b, ok := msgs[0].(BlurredMsg); !ok || b.Index != 0 {
+		t.Fatalf("expected BlurredMsg{Index:0}, got %T %+v", msgs[0], msgs[0])
+	}
+	if f, ok := msgs[1].(FocusedMsg); !ok || f.Index != 2 {
+		t.Fatalf("expected FocusedMsg{Index:2}, got %T %+v", msgs[1], msgs[1])
+	}
+}
+
+func TestFocusComponentNoOpWhenAlreadyFocused(t *testing.T) {
+	app := NewApplication()
+	c1 := &mockComponent{}
+	c2 := &mockComponent{}
+	app.AddComponent(c1)
+	app.AddComponent(c2)
+
+	// c1 is focused by default. Re-focusing must not emit messages.
+	if cmd := app.FocusComponent(0); cmd != nil {
+		t.Fatalf("expected nil cmd from re-focusing already-focused, got %v", cmd)
+	}
+}
+
+func TestFocusComponentOutOfRangeReturnsNil(t *testing.T) {
+	app := NewApplication()
+	app.AddComponent(&mockComponent{})
+
+	if cmd := app.FocusComponent(-1); cmd != nil {
+		t.Fatal("expected nil cmd for negative index")
+	}
+	if cmd := app.FocusComponent(99); cmd != nil {
+		t.Fatal("expected nil cmd for out-of-range index")
+	}
+}

@@ -1,5 +1,24 @@
 # Changelog
 
+## [tui/v2.20.1] - 2026-05-19
+
+Patch release fixing two HIGH-severity concurrency bugs in `event.Bus` surfaced by a code-review sweep on `tui/v2.20.0`. Both bugs predated this session but were not caught earlier because they are logical races rather than data races — `go test -race` does not surface them.
+
+### Fixed
+
+- **`event.Publish` no longer panics with "send on closed channel" when a publisher races a `Subscription.Close()`.** Subscribers now own a `done` channel that is closed instead of closing the raw event channel. `Publish`'s select adds a `<-sub.done` case so it skips concurrently-torn-down subscribers without panicking. Raw channels are never closed; GC reclaims them when the adapter goroutine exits.
+- **`Subscription` adapter goroutine no longer leaks when `Close` races a slow consumer.** The adapter's inner `typedCh <- value` send is now wrapped in `select { case typedCh <- v: case <-done: return }`, so closing `done` unblocks the adapter even when the typed channel buffer is full and the consumer has stopped draining.
+
+### Tests
+
+- `TestPublishConcurrentCloseDoesNotPanic` — 8 publishers vs 4 subscribe-then-close churners for 500ms; asserts no panic.
+- `TestCloseUnblocksAdapterWithFullBuffer` — fills the typed channel, calls Close, asserts the adapter exits within 250ms.
+- `TestSubscribeLegacyChannelStillDelivers` — regression guard for the legacy channel-returning `Subscribe` API after the refactor.
+
+### Internal
+
+- `Bus.subscribers` is now `map[string][]*subscriber` (was `map[string][]chan interface{}`) where `type subscriber struct { ch chan interface{}; done chan struct{} }`. All public APIs (`Subscribe`, `SubscribeWithHandle`, `Subscription.Chan`, `Subscription.Close`, `Publish`, `Unsubscribe`, `DroppedEvents`, `SetOnDrop`, `NewBus`, `Bus`, `BusMsg`, `Event`) retain their existing signatures.
+
 ## [tui/v2.20.0] - 2026-05-18
 
 First release on the `tui/v2.x` line since `tui/v2.19.0`. Consolidates three waves of correctness fixes and OpenTUI-inspired feature work, plus dependency bumps. 48 commits, 83 changed files, +18,569 lines.

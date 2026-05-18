@@ -67,33 +67,32 @@ func TestPublishToMultipleSubscribers(t *testing.T) {
 
 func TestUnsubscribeStopsDelivery(t *testing.T) {
 	bus := NewBus()
-	raw1 := make(chan interface{}, 1)
-	raw2 := make(chan interface{}, 1)
-	bus.subscribers["topic"] = []chan interface{}{raw1, raw2}
+	sub1 := &subscriber{ch: make(chan interface{}, 1), done: make(chan struct{})}
+	sub2 := &subscriber{ch: make(chan interface{}, 1), done: make(chan struct{})}
+	bus.subscribers["topic"] = []*subscriber{sub1, sub2}
 
-	Unsubscribe(bus, "topic", (<-chan interface{})(raw1))
+	Unsubscribe(bus, "topic", (<-chan interface{})(sub1.ch))
 
 	if len(bus.subscribers["topic"]) != 1 {
 		t.Fatalf("expected one remaining subscriber, got %d", len(bus.subscribers["topic"]))
 	}
 
-	if bus.subscribers["topic"][0] != raw2 {
-		t.Fatal("expected remaining subscriber to be raw2")
+	if bus.subscribers["topic"][0] != sub2 {
+		t.Fatal("expected remaining subscriber to be sub2")
 	}
 
+	// Verify the unsubscribed subscriber's done channel is closed.
 	select {
-	case _, ok := <-raw1:
-		if ok {
-			t.Fatal("expected unsubscribed channel to be closed")
-		}
+	case <-sub1.done:
+		// done was closed as expected
 	default:
-		t.Fatal("expected unsubscribed channel to be immediately readable as closed")
+		t.Fatal("expected unsubscribed subscriber's done channel to be closed")
 	}
 
 	Publish(bus, Event[string]{Name: "topic", Payload: "still-delivered"})
 
 	select {
-	case got := <-raw2:
+	case got := <-sub2.ch:
 		if got != "still-delivered" {
 			t.Fatalf("expected payload still-delivered, got %v", got)
 		}
@@ -118,8 +117,8 @@ func TestPublishDoesNotBlockOnSlowSubscriber(t *testing.T) {
 	bus := NewBus()
 
 	// Slow subscriber: never read from this raw channel.
-	slowRaw := make(chan interface{}, 1)
-	bus.subscribers["topic"] = append(bus.subscribers["topic"], slowRaw)
+	slowSub := &subscriber{ch: make(chan interface{}, 1), done: make(chan struct{})}
+	bus.subscribers["topic"] = append(bus.subscribers["topic"], slowSub)
 
 	// Fast typed subscriber via the public API.
 	fast := SubscribeWithHandle[string](bus, "topic")
@@ -159,8 +158,8 @@ func TestPublishOnDropCallback(t *testing.T) {
 	bus := NewBus()
 
 	// Slow subscriber whose buffer fills immediately.
-	slowRaw := make(chan interface{}, 1)
-	bus.subscribers["topic"] = append(bus.subscribers["topic"], slowRaw)
+	slowSub := &subscriber{ch: make(chan interface{}, 1), done: make(chan struct{})}
+	bus.subscribers["topic"] = append(bus.subscribers["topic"], slowSub)
 
 	var mu sync.Mutex
 	var dropped []string
@@ -260,7 +259,7 @@ func TestSubscribeCloseDoesNotLeakGoroutines(t *testing.T) {
 		sub.Close()
 	}
 
-	// Adapter goroutines exit asynchronously after rawCh close.
+	// Adapter goroutines exit asynchronously after done close.
 	waitForGoroutines(250 * time.Millisecond)
 	after := runtime.NumGoroutine()
 
@@ -342,5 +341,130 @@ func TestSubscribeWithHandle_Close(t *testing.T) {
 		case <-deadline:
 			t.Fatal("typed channel was not closed after Close")
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// New tests for tui/v2.20.1 concurrency fixes
+// ---------------------------------------------------------------------------
+
+// TestPublishConcurrentCloseDoesNotPanic reproduces Bug A: Publish racing
+// Subscription.Close used to send on a closed channel and panic. With the
+// done-channel fix, Publish's select skips torn-down subscribers.
+func TestPublishConcurrentCloseDoesNotPanic(t *testing.T) {
+	bus := NewBus()
+	var wg sync.WaitGroup
+	panicCh := make(chan any, 64)
+	stop := make(chan struct{})
+
+	safeGo := func(fn func()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					select {
+					case panicCh <- r:
+					default:
+					}
+				}
+			}()
+			fn()
+		}()
+	}
+
+	// Publishers
+	for i := 0; i < 8; i++ {
+		safeGo(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				Publish(bus, Event[int]{Name: "race", Payload: 42})
+			}
+		})
+	}
+
+	// Subscribe-then-Close churners
+	for i := 0; i < 4; i++ {
+		safeGo(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				sub := SubscribeWithHandle[int](bus, "race")
+				sub.Close()
+			}
+		})
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+
+	select {
+	case r := <-panicCh:
+		t.Fatalf("panic during concurrent Publish/Close: %v", r)
+	default:
+	}
+}
+
+// TestCloseUnblocksAdapterWithFullBuffer reproduces Bug B: the adapter
+// goroutine used to leak when Close was called while the adapter was
+// parked on typedCh <- value because the consumer stopped draining. The
+// done-aware inner select now unblocks the adapter.
+func TestCloseUnblocksAdapterWithFullBuffer(t *testing.T) {
+	bus := NewBus()
+	sub := SubscribeWithHandle[int](bus, "topic")
+
+	// Fill the typed channel buffer (size 1) by publishing and not draining.
+	Publish(bus, Event[int]{Name: "topic", Payload: 1})
+	// Now the adapter should be parked on typedCh <- value for the next event,
+	// OR have already delivered the first event into typedCh and be blocked on
+	// rawCh receive. Publish enough to guarantee the adapter is blocked on send.
+	for i := 0; i < 4; i++ {
+		Publish(bus, Event[int]{Name: "topic", Payload: i + 2})
+	}
+
+	// Close while the adapter is potentially parked on typedCh <- value.
+	sub.Close()
+
+	// Within 250ms, Chan() must close (adapter exited, defer close(typedCh) ran).
+	done := make(chan struct{})
+	go func() {
+		for range sub.Chan() {
+			// drain remaining buffered items
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// adapter exited cleanly
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("adapter goroutine did not exit within 250ms after Close — Bug B regression")
+	}
+}
+
+// TestSubscribeLegacyChannelStillDelivers is a belt-and-suspenders
+// regression guard for the legacy channel-returning Subscribe API after
+// the subscriber struct refactor.
+func TestSubscribeLegacyChannelStillDelivers(t *testing.T) {
+	bus := NewBus()
+	ch := Subscribe[string](bus, "topic")
+
+	Publish(bus, Event[string]{Name: "topic", Payload: "hello"})
+
+	select {
+	case got := <-ch:
+		if got != "hello" {
+			t.Fatalf("expected hello, got %q", got)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("legacy Subscribe did not deliver event within 100ms")
 	}
 }

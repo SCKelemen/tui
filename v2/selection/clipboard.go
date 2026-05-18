@@ -2,14 +2,48 @@ package selection
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync/atomic"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// DefaultMaxOSC52PayloadSize is the maximum number of bytes accepted by the
+// OSC 52 clipboard write helpers. Terminals impose varying limits on OSC 52
+// sequence length (xterm ~4 KB, iTerm2 ~100 KB by default); 100 KB is a
+// pragmatic default that works on most modern terminals. Use
+// SetMaxOSC52PayloadSize to override.
+const DefaultMaxOSC52PayloadSize = 100 * 1024
+
+// ErrOSC52PayloadTooLarge is returned by clipboard write helpers when the
+// content exceeds the configured size limit.
+var ErrOSC52PayloadTooLarge = errors.New("osc52: clipboard payload exceeds configured size limit")
+
+// osc52PayloadLimit stores the configured maximum payload size. Defaults to
+// DefaultMaxOSC52PayloadSize.
+var osc52PayloadLimit atomic.Int64
+
+func init() {
+	osc52PayloadLimit.Store(int64(DefaultMaxOSC52PayloadSize))
+}
+
+// SetMaxOSC52PayloadSize sets the maximum payload size for OSC 52 clipboard
+// writes and returns the previous limit. Pass 0 or a negative value to
+// disable the limit entirely.
+func SetMaxOSC52PayloadSize(n int) (previous int) {
+	return int(osc52PayloadLimit.Swap(int64(n)))
+}
+
+// MaxOSC52PayloadSize returns the current maximum payload size for OSC 52
+// clipboard writes.
+func MaxOSC52PayloadSize() int {
+	return int(osc52PayloadLimit.Load())
+}
 
 // ClipboardTarget represents the OSC 52 clipboard target.
 type ClipboardTarget string
@@ -91,6 +125,9 @@ func DetectMethod() string {
 }
 
 func writeOSC52(content string, target ClipboardTarget) error {
+	if limit := MaxOSC52PayloadSize(); limit > 0 && len(content) > limit {
+		return ErrOSC52PayloadTooLarge
+	}
 	sequence := OSC52Sequence(target, content)
 	_, err := os.Stdout.WriteString(sequence)
 	return err

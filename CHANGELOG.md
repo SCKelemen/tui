@@ -1,5 +1,29 @@
 # Changelog
 
+## [tui/v2.21.0] - 2026-05-18
+
+Minor release with four medium-severity bug fixes from the post-v2.20.1 bug-hunt sweep plus a `layout` dependency bump.
+
+### Added
+
+- `selection.DefaultMaxOSC52PayloadSize` (100 KB) and `selection.ErrOSC52PayloadTooLarge` — clipboard write helpers now return `ErrOSC52PayloadTooLarge` when the content exceeds the configured limit. Many terminals silently drop OSC 52 sequences over their implementation-specific cap; this gives callers explicit feedback. Override with `selection.SetMaxOSC52PayloadSize(n)`; pass `0` to disable the limit.
+
+### Fixed
+
+- `displayWidth` now uses `runewidth.StringWidth` on the printable buffer, fixing over-counted widths for ZWJ emoji sequences (👨‍👩‍👧‍👦 was width 8, now 2 as terminals render) and other multi-codepoint grapheme clusters.
+- `skipEscape` defensive guard now returns `len(s)` instead of `i+1` when called at or past the end of the input. The path was unreachable in current callers but the off-by-one would have panicked if a refactor exposed it.
+- `normalizeFrameLine` now unconditionally appends `\x1b[0m` when truncating a line that contained any escape sequence. The previous heuristic in `hasOpenStyle` missed reset variants like `\x1b[00;00m` and `\x1b[;m`, potentially leaving a styled segment open into the padding region. The cost is one redundant reset; the gain is no half-styled output.
+
+### Changed
+
+- `github.com/SCKelemen/layout` bumped from `v1.1.3` to `v1.2.0`. v1.2.0 adopts `github.com/SCKelemen/units` as the canonical length type and ships full CSS Values L4 length unit coverage plus container queries. `layout.Length` remains source-compatible because it is now a type alias for `units.Length`.
+
+### Tests
+
+- `TestWriteClipboardTooLarge`, `TestWriteClipboardUnderLimit`, `TestSetMaxOSC52PayloadSizeZeroDisablesLimit` — OSC 52 size limit behavior.
+- `TestDisplayWidthZWJEmojiIsTwoCells` — grapheme-cluster width.
+- `TestSkipEscapeAtEndOfString` — defensive guard.
+
 ## [tui/v2.20.1] - 2026-05-19
 
 Patch release fixing two HIGH-severity concurrency bugs in `event.Bus` surfaced by a code-review sweep on `tui/v2.20.0`. Both bugs predated this session but were not caught earlier because they are logical races rather than data races — `go test -race` does not surface them.

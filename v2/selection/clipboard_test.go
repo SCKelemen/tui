@@ -2,6 +2,7 @@ package selection
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -128,5 +129,51 @@ func TestClipboardWriteMsgFields(t *testing.T) {
 	}
 	if msg.Err != nil {
 		t.Fatalf("unexpected error: %v", msg.Err)
+	}
+}
+
+func TestWriteClipboardTooLarge(t *testing.T) {
+	// Set a tiny limit for the test, restore after.
+	prev := SetMaxOSC52PayloadSize(16)
+	defer SetMaxOSC52PayloadSize(prev)
+
+	// Run the command that performs the OSC 52 write.
+	cmd := WriteClipboard(strings.Repeat("x", 1024))
+	msg, ok := cmd().(ClipboardWriteMsg)
+	if !ok {
+		t.Fatalf("expected ClipboardWriteMsg, got %T", cmd())
+	}
+	if !errors.Is(msg.Err, ErrOSC52PayloadTooLarge) {
+		t.Fatalf("expected ErrOSC52PayloadTooLarge, got %v", msg.Err)
+	}
+}
+
+func TestWriteClipboardUnderLimit(t *testing.T) {
+	prev := SetMaxOSC52PayloadSize(1024)
+	defer SetMaxOSC52PayloadSize(prev)
+
+	cmd := WriteClipboard("small")
+	msg, ok := cmd().(ClipboardWriteMsg)
+	if !ok {
+		t.Fatalf("expected ClipboardWriteMsg, got %T", cmd())
+	}
+	// The write may fail (stdout is not a terminal in test), but it must
+	// NOT fail with ErrOSC52PayloadTooLarge.
+	if errors.Is(msg.Err, ErrOSC52PayloadTooLarge) {
+		t.Fatalf("expected no size-limit error for under-limit payload, got %v", msg.Err)
+	}
+}
+
+func TestSetMaxOSC52PayloadSizeZeroDisablesLimit(t *testing.T) {
+	prev := SetMaxOSC52PayloadSize(0)
+	defer SetMaxOSC52PayloadSize(prev)
+
+	cmd := WriteClipboard(strings.Repeat("x", 1024*1024)) // 1 MB
+	msg, ok := cmd().(ClipboardWriteMsg)
+	if !ok {
+		t.Fatalf("expected ClipboardWriteMsg, got %T", cmd())
+	}
+	if errors.Is(msg.Err, ErrOSC52PayloadTooLarge) {
+		t.Fatalf("expected limit to be disabled, but got ErrOSC52PayloadTooLarge")
 	}
 }

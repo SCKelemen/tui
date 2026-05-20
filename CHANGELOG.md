@@ -1,5 +1,20 @@
 # Changelog
 
+## [tui/v2.22.0] - 2026-05-20
+
+Dependency bump completing the `unicode/v6` migration across the SCKelemen stack.
+
+### Changed
+
+- `github.com/SCKelemen/text` bumped from `v1.1.3` to `v1.2.0`. `text` now consumes `unicode/v6` internally for UAX #29 grapheme segmentation and East Asian width measurement.
+- `github.com/SCKelemen/layout` bumped from `v1.2.1` to `v1.3.0`. `layout` now consumes `unicode/v6` and `text v1.2.0`.
+- `github.com/SCKelemen/unicode` indirect dependency migrated from `v1.1.1` (root module path) to `github.com/SCKelemen/unicode/v6 v6.2.0` (major-version module path per Go module conventions).
+- `github.com/SCKelemen/units` stays at `v1.2.1` (already at latest).
+
+### Notes
+
+`tui/v2` has no direct imports of `unicode`; the migration is entirely indirect through `text` and `layout`. No source changes were required — only `go.mod` and `go.sum` were updated.
+
 ## [v1.7.0] - 2026-05-20
 
 End-of-life release for the v1 module path (`github.com/SCKelemen/tui`). All v1 implementation code has been removed and replaced with a deprecation stub.

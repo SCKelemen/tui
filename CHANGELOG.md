@@ -1,5 +1,31 @@
 # Changelog
 
+## [v1.7.0] - 2026-05-20
+
+End-of-life release for the v1 module path (`github.com/SCKelemen/tui`). All v1 implementation code has been removed and replaced with a deprecation stub.
+
+### Removed
+
+- All v1 source files at the repository root. The git history and the last v1 tag (`v1.6.0`) remain valid for module proxy fetches.
+- `tui/grapheme.go` — v1's parallel grapheme cluster implementation built on `github.com/rivo/uniseg`. v2 uses `github.com/SCKelemen/text` (UAX #29 segmentation via `github.com/SCKelemen/unicode/uax29`) for the same purpose.
+- v1 examples under `examples/`.
+- `tui/table` subpackage.
+- v1 documentation files: `API_REFERENCE.md`, `ARCHITECTURE.md`, `BEST_PRACTICES.md`, `COMPONENTS.md`, `DASHBOARD.md`, `LAYOUT_INTEGRATION.md`.
+- `showcase` binary.
+- All v1 direct dependencies. Root `go.mod` is now a minimal module declaration with no direct deps.
+
+### Migration
+
+```go
+import tui "github.com/SCKelemen/tui/v2"
+```
+
+v2 has been actively developed and is at `tui/v2.21.1` as of this release. See the `tui/v2.*` CHANGELOG entries below for the v2 history.
+
+### Note for downstream consumers
+
+`go get github.com/SCKelemen/tui@v1.6.0` continues to work for projects that have not yet migrated. The recommended migration path is to update the import path to `github.com/SCKelemen/tui/v2`. No drop-in compatibility shim is provided — v2 has a substantially different API around lifecycle, the event bus, and layout integration.
+
 ## [tui/v2.21.1] - 2026-05-20
 
 Patch release fixing grapheme-cluster safety in `v2/framebuffer.go` via migration to the `github.com/SCKelemen/text` package (UAX #29 segmentation through `github.com/SCKelemen/unicode/uax29`).

@@ -117,19 +117,18 @@ func TestNormalizeFrameLineCJK(t *testing.T) {
 }
 
 func TestNormalizeFrameLineEmojiZWJ(t *testing.T) {
-	// "👩‍💻" is woman + ZWJ + laptop = visually 1 glyph. normalizeFrameLine
-	// counts per-rune (4 cells for the emoji constituents), while displayWidth
-	// uses runewidth.StringWidth which correctly counts the ZWJ sequence as
-	// 2 cells. The padding computed by normalizeFrameLine therefore does not
-	// perfectly match displayWidth for ZWJ sequences, but both are internally
-	// consistent: normalizeFrameLine never splits a ZWJ cluster, and
-	// displayWidth reports what the terminal actually renders.
+	// "👩‍💻" is woman + ZWJ + laptop = visually 1 glyph (2 cells).
+	// With v2.21.1 both normalizeFrameLine and displayWidth use
+	// grapheme-cluster-aware measurement via github.com/SCKelemen/text,
+	// so the width discrepancy from v2.21.0 is gone.
 	line := "👩\u200d💻 hi"
-	out := normalizeFrameLine(line, 12)
-	// normalizeFrameLine sees width=7 (2+0+2+1+1+1), pads 5 spaces -> 12.
-	// displayWidth sees ZWJ pair as 2 cells total: 2+1+1+1+5 = 10.
-	if got := displayWidth(out); got != 10 {
-		t.Fatalf("expected displayWidth 10 for ZWJ+padded line, got %d (%q)", got, out)
+	const target = 12
+	out := normalizeFrameLine(line, target)
+	if got := displayWidth(out); got != target {
+		t.Fatalf("expected displayWidth %d for ZWJ+padded line, got %d (%q)", target, got, out)
+	}
+	if !strings.Contains(out, "👩\u200d💻") {
+		t.Fatalf("expected ZWJ sequence to appear intact, got %q", out)
 	}
 }
 
@@ -355,5 +354,56 @@ func TestSkipEscapeAtEndOfString(t *testing.T) {
 	s := "abc"
 	if got := skipEscape(s, len(s)); got != len(s) {
 		t.Fatalf("expected skipEscape at end to return len(s)=%d, got %d", len(s), got)
+	}
+}
+
+func TestNormalizeFrameLineDoesNotSplitZWJ(t *testing.T) {
+	// The ZWJ family emoji is grapheme-cluster width 2. With a budget that
+	// can't fit it, normalize must EXCLUDE the entire cluster — never emit
+	// a partial ZWJ sequence.
+	family := "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466" // 👨‍👩‍👧‍👦
+	line := "abc" + family + "xyz"
+
+	// Budget of 4 cells: "abc" = 3 cells, family would push to 5; must exclude family.
+	got := normalizeFrameLine(line, 4)
+
+	if strings.Contains(got, family) {
+		t.Fatalf("expected family ZWJ to be excluded at width=4, but it appears in result: %q", got)
+	}
+	if w := displayWidth(got); w != 4 {
+		t.Fatalf("expected width 4, got %d (result: %q)", w, got)
+	}
+}
+
+func TestNormalizeFrameLineIncludesWholeZWJ(t *testing.T) {
+	// Budget that does fit the cluster — it must appear intact.
+	family := "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466" // 👨‍👩‍👧‍👦
+	line := "ab" + family + "cd"
+
+	// Budget of 6 cells: "ab" = 2 + family = 2 + "cd" = 2 → exactly 6.
+	got := normalizeFrameLine(line, 6)
+	if !strings.Contains(got, family) {
+		t.Fatalf("expected family ZWJ to appear intact at width=6, got: %q", got)
+	}
+	if w := displayWidth(got); w != 6 {
+		t.Fatalf("expected width 6, got %d (result: %q)", w, got)
+	}
+}
+
+func TestNormalizeFrameLineStyledZWJPreservesEscapes(t *testing.T) {
+	family := "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466" // 👨‍👩‍👧‍👦
+	line := "\x1b[31m" + family + "\x1b[0m hi"
+
+	// Width 5: family (2) + " hi" (3) = 5.
+	got := normalizeFrameLine(line, 5)
+
+	if !strings.Contains(got, family) {
+		t.Fatalf("expected family ZWJ to appear intact, got: %q", got)
+	}
+	if !strings.Contains(got, "\x1b[31m") {
+		t.Fatalf("expected red SGR to be preserved, got: %q", got)
+	}
+	if w := displayWidth(got); w != 5 {
+		t.Fatalf("expected width 5, got %d (result: %q)", w, got)
 	}
 }

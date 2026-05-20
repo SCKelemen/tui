@@ -7,8 +7,12 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	runewidth "github.com/mattn/go-runewidth"
+	"github.com/SCKelemen/text"
 )
+
+// terminalText is a shared text.Text configured for terminal cell width.
+// It is read-only after construction and safe for concurrent use.
+var terminalText = text.NewTerminal()
 
 // FrameBuffer manages double-buffered terminal rendering.
 // It renders the full next frame to a back buffer, diffs against
@@ -226,16 +230,15 @@ func (fb *FrameBuffer) syncFrontToBack() {
 
 // displayWidth returns the number of terminal cells a string occupies when
 // rendered, ignoring ANSI escape sequences (CSI \x1b[...<final>, OSC
-// \x1b]...(BEL|ST), and bare \x1b<single-byte>). Wide and zero-width runes
-// are handled via runewidth.StringWidth which correctly accounts for
-// grapheme clusters such as ZWJ emoji sequences.
+// \x1b]...(BEL|ST), and bare \x1b<single-byte>). Grapheme clusters such as
+// ZWJ emoji sequences are measured as terminals render them via
+// github.com/SCKelemen/text (which uses UAX #29 segmentation).
 func displayWidth(s string) int {
 	if s == "" {
 		return 0
 	}
 	// Strip ANSI escapes and OSC sequences into a printable buffer, then
-	// delegate to runewidth.StringWidth which handles ZWJ and other
-	// multi-codepoint sequences as terminals do.
+	// delegate to text.Width which is grapheme-cluster aware.
 	var printable strings.Builder
 	printable.Grow(len(s))
 	for i := 0; i < len(s); {
@@ -247,7 +250,7 @@ func displayWidth(s string) int {
 		printable.WriteRune(r)
 		i += size
 	}
-	return runewidth.StringWidth(printable.String())
+	return int(terminalText.Width(printable.String()))
 }
 
 // skipEscape advances past an ANSI escape sequence starting at s[i] (which
@@ -296,9 +299,12 @@ func skipEscape(s string, i int) int {
 
 // normalizeFrameLine truncates or pads a line so that it occupies exactly
 // width display cells, while preserving ANSI escape sequences and respecting
-// wide characters. Escape sequences are treated as zero-width and copied
-// through. When truncating in the middle of styled content, a final SGR
-// reset (\x1b[0m) is appended so styling does not bleed.
+// grapheme clusters (UAX #29). Escape sequences are treated as zero-width
+// and copied through. Truncation never lands inside a grapheme cluster:
+// if the next cluster would exceed the budget, it is excluded entirely
+// (no partial ZWJ sequences). When truncating in the middle of styled
+// content, a final SGR reset (\x1b[0m) is appended so styling does not
+// bleed.
 func normalizeFrameLine(line string, width int) string {
 	if width <= 0 {
 		return ""
@@ -308,36 +314,45 @@ func normalizeFrameLine(line string, width int) string {
 	out.Grow(len(line))
 
 	used := 0
+	hadEscape := false
+	truncated := false
+
 	i := 0
-	for i < len(line) {
+	for i < len(line) && !truncated {
+		// Pass through escape sequences as zero-width.
 		if line[i] == 0x1b {
 			j := skipEscape(line, i)
 			out.WriteString(line[i:j])
+			hadEscape = true
 			i = j
 			continue
 		}
 
-		r, size := utf8.DecodeRuneInString(line[i:])
-		runeW := runewidth.RuneWidth(r)
-		if r == utf8.RuneError && size == 1 {
-			runeW = 1
+		// Extract the next printable run up to the next escape or EOL.
+		runStart := i
+		for i < len(line) && line[i] != 0x1b {
+			i++
 		}
+		run := line[runStart:i]
 
-		if used+runeW > width {
-			break
+		// Walk grapheme clusters within the run.
+		for _, g := range terminalText.Graphemes(run) {
+			gw := int(terminalText.Width(g))
+			if used+gw > width {
+				truncated = true
+				break
+			}
+			out.WriteString(g)
+			used += gw
 		}
-
-		out.WriteString(line[i : i+size])
-		used += runeW
-		i += size
 	}
 
-	// If we stopped early and the source contained any escape sequence,
-	// unconditionally append a reset so styling does not bleed into padding.
-	if i < len(line) && strings.ContainsRune(line[:i], 0x1b) {
+	// If truncated mid-styled-content, close any open SGR.
+	if truncated && hadEscape {
 		out.WriteString("\x1b[0m")
 	}
 
+	// Pad to target width.
 	if used < width {
 		out.WriteString(strings.Repeat(" ", width-used))
 	}

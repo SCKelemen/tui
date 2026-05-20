@@ -1,5 +1,28 @@
 # Changelog
 
+## [tui/v2.21.1] - 2026-05-20
+
+Patch release fixing grapheme-cluster safety in `v2/framebuffer.go` via migration to the `github.com/SCKelemen/text` package (UAX #29 segmentation through `github.com/SCKelemen/unicode/uax29`).
+
+### Fixed
+
+- `normalizeFrameLine` now walks grapheme clusters instead of runes. Previously, truncating a line containing a ZWJ sequence such as 👨‍👩‍👧‍👦 could land inside the cluster and emit a partial sequence to the terminal. The new logic excludes any cluster that would exceed the width budget, never splitting within a cluster.
+- `normalizeFrameLine` and `displayWidth` now agree on width for all inputs. Previously, `normalizeFrameLine` measured per-rune (over-counting ZWJ clusters) while `displayWidth` used `runewidth.StringWidth` (grapheme-aware). ZWJ-containing lines were over-padded by 2+ cells per cluster. Both functions now delegate to `text.NewTerminal().Width` which is grapheme-cluster aware.
+
+### Changed
+
+- `displayWidth` and `normalizeFrameLine` now use `github.com/SCKelemen/text` for grapheme segmentation and width measurement instead of `github.com/mattn/go-runewidth` directly. `runewidth` remains a transitive dependency and is still used elsewhere in `v2/`.
+- `github.com/SCKelemen/text` promoted from indirect to direct dependency.
+- `github.com/SCKelemen/layout` bumped to `v1.2.1` (cq* units resolve to 0 when no container size available).
+- `github.com/SCKelemen/units` bumped to `v1.2.1` (`ParseLength` rejects scientific notation).
+
+### Tests
+
+- `TestNormalizeFrameLineEmojiZWJ` updated to assert that `displayWidth(normalizeFrameLine(s, w)) == w` — the v2.21.0 workaround that documented the discrepancy is no longer needed.
+- `TestNormalizeFrameLineDoesNotSplitZWJ` — verifies cluster exclusion at truncation boundary.
+- `TestNormalizeFrameLineIncludesWholeZWJ` — verifies cluster preservation when budget allows.
+- `TestNormalizeFrameLineStyledZWJPreservesEscapes` — verifies ANSI + ZWJ interaction.
+
 ## [tui/v2.21.0] - 2026-05-18
 
 Minor release with four medium-severity bug fixes from the post-v2.20.1 bug-hunt sweep plus a `layout` dependency bump.
